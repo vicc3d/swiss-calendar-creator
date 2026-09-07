@@ -1,0 +1,2068 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swiss Calendar Creator · Web</title>
+<meta name="description" content="Generador paramétrico de calendarios de estética suiza (International Typographic Style). Vistas Año / Mes / Semana / Día, ES/EN, feriados por país, exporta SVG y PNG.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================ */
+  /* DESIGN TOKENS  — shared language with Swiss Grid Explorer      */
+  /* ============================================================ */
+  :root {
+    --bg-base: #0d0e10;
+    --bg-elevated: #15171a;
+    --bg-input: #1a1d20;
+    --bg-input-focus: #1e2226;
+    --bg-hover: #1f2226;
+
+    --border-subtle: #1f2227;
+    --border: #25282d;
+    --border-strong: #2f3338;
+    --border-focus: #4a4f56;
+
+    --text-primary: #e8e9ec;
+    --text-secondary: #a0a5ad;
+    --text-tertiary: #8e9299;
+    --text-quaternary: #72787f;
+
+    --accent: #4cc2ff;
+    --accent-dim: #4cc2ff80;
+    --accent-faint: #4cc2ff14;
+    --accent-glow: #4cc2ff33;
+
+    --warm: #fb8d2b;
+    --success: #8bd17c;
+    --error: #ff6b6b;
+
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+    --header-h: 56px;
+    --footer-h: 64px;
+    --rail-w: 288px;
+    --gallery-w: 296px;
+    --radius: 4px;
+    --radius-sm: 3px;
+
+    --ease: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-feature-settings: "ss01", "ss02";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/></svg>");
+  }
+
+  .app {
+    display: grid;
+    grid-template-rows: var(--header-h) 1fr var(--footer-h);
+    height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* HEADER ====================================================== */
+  .header {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--bg-base);
+  }
+  .header__brand { display: flex; align-items: baseline; gap: 12px; }
+  .header__title {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+  }
+  .header__title em { font-style: normal; color: var(--text-secondary); font-weight: 400; }
+  .header__center {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--text-quaternary);
+    text-transform: uppercase;
+  }
+  .header__nav { display: flex; gap: 4px; justify-content: flex-end; align-items: center; }
+  .nav-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all 120ms var(--ease);
+  }
+  .nav-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+  .nav-btn.active { color: var(--accent); }
+  .nav-sep { width: 1px; height: 14px; background: var(--border); margin: 0 4px; }
+
+  /* MAIN ======================================================== */
+  .main {
+    display: grid;
+    grid-template-columns: var(--rail-w) 1fr var(--gallery-w);
+    overflow: hidden;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .rail {
+    overflow-y: auto;
+    padding: 20px 22px;
+    border-right: 1px solid var(--border-subtle);
+    display: flex; flex-direction: column; gap: 24px;
+  }
+  .rail--right { border-right: none; border-left: 1px solid var(--border-subtle); }
+  .rail::-webkit-scrollbar { width: 6px; }
+  .rail::-webkit-scrollbar-track { background: transparent; }
+  .rail::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .section { display: flex; flex-direction: column; gap: 10px; }
+  .section__header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .section__num {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-quaternary);
+    letter-spacing: 0.1em;
+  }
+  .section__title {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+  .section__title--doc { color: #b49dff; }
+  .section__title--cal { color: var(--accent); }
+  .section__title--style { color: #FFB200; }
+  .section__title--events { color: #ff7a9c; }
+  .section__rule { flex: 1; height: 1px; background: var(--border-subtle); margin-left: 4px; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field__row { display: flex; align-items: center; gap: 8px; }
+  .field__label { font-size: 12px; font-weight: 400; color: var(--text-secondary); letter-spacing: -0.005em; }
+  .field__value {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    width: 60px;
+    text-align: right;
+    transition: border-color 100ms var(--ease);
+    font-feature-settings: "tnum";
+  }
+  .field__value:focus { outline: none; border-color: var(--border-focus); background: var(--bg-input-focus); }
+
+  .slider {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 22px; background: transparent; cursor: pointer; margin: 0;
+  }
+  .slider::-webkit-slider-runnable-track { height: 2px; background: var(--border); border-radius: 1px; }
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 12px; height: 12px; background: var(--text-primary);
+    border: 2px solid var(--bg-base); border-radius: 50%; margin-top: -5px;
+    transition: transform 100ms var(--ease), box-shadow 100ms var(--ease);
+    box-shadow: 0 0 0 1px var(--border-strong);
+  }
+  .slider:hover::-webkit-slider-thumb { background: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-glow); }
+  .slider:focus { outline: none; }
+  .slider:focus::-webkit-slider-thumb { background: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-glow); }
+  .slider::-moz-range-track { height: 2px; background: var(--border); border-radius: 1px; }
+  .slider::-moz-range-thumb { width: 12px; height: 12px; background: var(--text-primary); border: 2px solid var(--bg-base); border-radius: 50%; box-shadow: 0 0 0 1px var(--border-strong); }
+
+  .select {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    padding: 8px 28px 8px 10px;
+    border-radius: var(--radius-sm);
+    appearance: none;
+    cursor: pointer;
+    transition: border-color 100ms var(--ease);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1L5 5L9 1' stroke='%238a8e95' stroke-width='1.5' fill='none'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+  .select:hover { border-color: var(--border-strong); }
+  .select:focus { outline: none; border-color: var(--border-focus); background-color: var(--bg-input-focus); }
+
+  .text-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: 12px;
+    padding: 7px 9px;
+    border-radius: var(--radius-sm);
+    transition: border-color 100ms var(--ease);
+  }
+  .text-input:focus { outline: none; border-color: var(--border-focus); background: var(--bg-input-focus); }
+
+  .dim { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+  .dim__cell { display: flex; flex-direction: column; gap: 4px; }
+  .dim__label {
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.15em;
+    color: var(--text-tertiary); text-transform: uppercase;
+  }
+  .dim__input {
+    background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);
+    font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+    padding: 6px 8px; border-radius: var(--radius-sm); width: 100%;
+    transition: border-color 100ms var(--ease);
+  }
+  .dim__input:focus { outline: none; border-color: var(--border-focus); background: var(--bg-input-focus); }
+  .btn-swap {
+    width: 30px; height: 30px; margin-top: auto;
+    display: grid; place-items: center;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); color: var(--text-tertiary);
+    font-size: 14px; line-height: 1; cursor: pointer;
+    transition: all 150ms var(--ease);
+  }
+  .btn-swap:hover { border-color: var(--border-focus); color: var(--accent); background: var(--bg-hover); }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+  input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
+  /* Segmented button set */
+  .segment {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    gap: 2px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+  }
+  .segment__btn {
+    background: transparent; border: none;
+    color: var(--text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 10px; font-weight: 500; letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 6px 4px; cursor: pointer; border-radius: 2px;
+    transition: all 120ms var(--ease);
+  }
+  .segment__btn:hover { color: var(--text-primary); }
+  .segment__btn.active { background: var(--accent); color: var(--bg-base); font-weight: 600; }
+
+  /* Checkbox */
+  .checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .checkbox input { display: none; }
+  .checkbox__box {
+    width: 14px; height: 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 2px; background: var(--bg-input);
+    display: grid; place-items: center; flex-shrink: 0;
+    transition: all 100ms var(--ease);
+  }
+  .checkbox input:checked + .checkbox__box { background: var(--accent); border-color: var(--accent); }
+  .checkbox__box::after {
+    content: ""; width: 8px; height: 4px;
+    border: 1.5px solid var(--bg-base); border-top: 0; border-right: 0;
+    transform: rotate(-45deg) translate(1px, -1px) scale(0);
+    transition: transform 120ms var(--ease);
+  }
+  .checkbox input:checked + .checkbox__box::after { transform: rotate(-45deg) translate(1px, -1px) scale(1); }
+  .checkbox__label { font-size: 12px; color: var(--text-secondary); font-weight: 400; }
+  .check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+
+  .field--locked { opacity: 0.4; pointer-events: none; }
+
+  .hint { font-size: 10px; line-height: 1.45; color: var(--text-quaternary); margin: 2px 0 0; }
+
+  /* Color pickers */
+  .color-row { display: flex; align-items: center; gap: 8px; }
+  .color-row__label { font-size: 12px; color: var(--text-secondary); flex: 1; }
+  .color-swatch {
+    width: 28px; height: 22px; padding: 0;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: none; cursor: pointer; overflow: hidden;
+  }
+  .color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+  .color-swatch::-webkit-color-swatch { border: none; }
+  .color-hex {
+    font-family: var(--font-mono); font-size: 10px; color: var(--text-tertiary);
+    width: 62px; text-transform: uppercase;
+    background: var(--bg-input); border: 1px solid var(--border);
+    padding: 3px 5px; border-radius: var(--radius-sm);
+  }
+  .color-hex:focus { outline: none; border-color: var(--border-focus); }
+
+  /* Events */
+  .event-add { display: grid; grid-template-columns: 1fr; gap: 6px; }
+  .event-add__row { display: flex; gap: 6px; }
+  .event-add__row .text-input { flex: 1; min-width: 0; }
+  .event-date {
+    background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary);
+    font-family: var(--font-mono); font-size: 11px; padding: 6px 7px;
+    border-radius: var(--radius-sm); color-scheme: dark;
+  }
+  .event-date:focus { outline: none; border-color: var(--border-focus); }
+  .event-list { display: flex; flex-direction: column; gap: 5px; max-height: 220px; overflow-y: auto; }
+  .event-item {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-elevated); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm); padding: 6px 6px 6px 9px;
+  }
+  .event-item__dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--text-tertiary); }
+  .event-item__dot--holiday { background: var(--error); }
+  .event-item__body { flex: 1; min-width: 0; }
+  .event-item__name {
+    font-size: 11px; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .event-item__date { font-family: var(--font-mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 0.04em; }
+  .event-item__del {
+    background: none; border: none; color: var(--text-quaternary);
+    cursor: pointer; padding: 2px 4px; font-size: 15px; line-height: 1; flex-shrink: 0;
+    transition: color 150ms var(--ease);
+  }
+  .event-item__del:hover { color: var(--error); }
+  .event-empty { font-size: 10px; color: var(--text-quaternary); font-style: italic; margin: 0; }
+  .events-divider {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.15em;
+    color: var(--text-quaternary); text-transform: uppercase; margin-top: 4px;
+  }
+  .events-divider::after { content: ""; flex: 1; height: 1px; background: var(--border-subtle); }
+
+  /* CANVAS ===================================================== */
+  .canvas-wrap {
+    position: relative; overflow: hidden;
+    background:
+      radial-gradient(ellipse at center, rgba(76,194,255,0.025) 0%, transparent 60%),
+      var(--bg-base);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+  .canvas-top {
+    padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .canvas-top__label {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em;
+    color: var(--text-quaternary); text-transform: uppercase;
+  }
+  .canvas-top__alert {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; padding: 4px 10px;
+    border: 1px solid rgba(139,209,124,0.3); color: var(--success);
+    background: rgba(139,209,124,0.06); border-radius: var(--radius-sm);
+  }
+  .canvas-top__alert--warn { border-color: rgba(245,166,35,0.35); color: var(--warm); background: rgba(251,141,43,0.06); }
+  .canvas { position: relative; display: grid; place-items: center; padding: 32px; overflow: hidden; }
+  #preview { max-width: 100%; max-height: 100%; filter: drop-shadow(0 20px 40px rgba(0,0,0,0.4)); }
+  .canvas-bottom {
+    padding: 14px 24px; display: flex; justify-content: space-between;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .stat { display: flex; align-items: baseline; gap: 6px; }
+  .stat__label {
+    font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.15em;
+    color: var(--accent); opacity: 0.75; text-transform: uppercase;
+  }
+  .stat__value { font-family: var(--font-mono); font-size: 11px; font-weight: 500; color: var(--text-primary); font-feature-settings: "tnum"; }
+
+  /* FOOTER ==================================================== */
+  .footer { display: flex; justify-content: space-between; align-items: center; padding: 0 24px; background: var(--bg-base); }
+  .footer__group { display: flex; gap: 8px; align-items: center; }
+  .btn {
+    background: transparent; border: 1px solid var(--border); color: var(--text-secondary);
+    font-family: var(--font-display); font-size: 12px; font-weight: 500;
+    padding: 8px 14px; border-radius: var(--radius-sm); cursor: pointer;
+    transition: all 150ms var(--ease); letter-spacing: -0.005em;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn:hover { border-color: var(--border-focus); color: var(--text-primary); background: var(--bg-hover); }
+  .btn--primary { background: var(--accent); border-color: var(--accent); color: var(--bg-base); font-weight: 600; padding: 8px 20px; }
+  .btn--primary:hover { background: #62cdff; border-color: #62cdff; color: var(--bg-base); transform: translateY(-1px); box-shadow: 0 8px 20px rgba(76,194,255,0.2); }
+  .btn__kbd {
+    font-family: var(--font-mono); font-size: 9px; color: var(--text-tertiary);
+    letter-spacing: 0.05em; padding-left: 6px; border-left: 1px solid var(--border); margin-left: 2px;
+  }
+  .btn--primary .btn__kbd { color: rgba(13,14,16,0.5); border-color: rgba(13,14,16,0.2); }
+  .footer__link {
+    font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary);
+    text-decoration: none; transition: color 150ms var(--ease);
+  }
+  .footer__link:hover { color: var(--accent); }
+  .footer__link--kofi:hover { color: var(--warm); }
+  .footer__sep { font-family: var(--font-mono); font-size: 10px; color: var(--text-quaternary); margin: 0 6px; }
+  .footer__divider { width: 1px; height: 18px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+  /* Info dot + popover (PNG font caveat) */
+  .info-wrap { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+  .info-dot {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 1px solid var(--border-strong); background: transparent;
+    color: var(--text-tertiary); font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    cursor: pointer; display: inline-grid; place-items: center; flex-shrink: 0; padding: 0;
+    transition: color 150ms var(--ease), border-color 150ms var(--ease);
+  }
+  .info-dot:hover, .info-dot.active { color: var(--accent); border-color: var(--accent); }
+  .info-pop {
+    position: absolute; bottom: calc(100% + 10px); right: 0;
+    width: 290px; background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 14px;
+    font-size: 11px; line-height: 1.5; color: var(--text-secondary);
+    white-space: pre-line; box-shadow: 0 12px 34px rgba(0,0,0,0.45);
+    opacity: 0; pointer-events: none; transform: translateY(4px);
+    transition: opacity 140ms var(--ease), transform 140ms var(--ease); z-index: 150;
+  }
+  .info-pop.show { opacity: 1; pointer-events: auto; transform: none; }
+  .info-pop b { color: var(--text-primary); font-weight: 600; }
+
+  /* MODAL ==================================================== */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    display: none; place-items: center; z-index: 100; animation: fadeIn 200ms var(--ease);
+  }
+  .modal-overlay.show { display: grid; }
+  .modal {
+    background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px;
+    max-width: 460px; width: 90%; padding: 32px; box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+    animation: slideUp 280ms var(--ease);
+  }
+  .modal__title { font-family: var(--font-display); font-size: 18px; font-weight: 500; margin-bottom: 16px; letter-spacing: -0.015em; }
+  .modal__body { font-size: 13px; color: var(--text-secondary); line-height: 1.65; white-space: pre-wrap; margin-bottom: 24px; }
+  .modal__body strong { color: var(--text-primary); font-weight: 500; }
+  .modal__close {
+    background: var(--accent); color: var(--bg-base); border: none; padding: 8px 16px;
+    border-radius: var(--radius-sm); cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600;
+  }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }
+
+  .hidden-input { display: none; }
+  .is-hidden { display: none !important; }
+
+  .toast {
+    position: fixed; bottom: 80px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-primary);
+    padding: 10px 18px; border-radius: var(--radius-sm); font-size: 12px;
+    opacity: 0; transition: all 240ms var(--ease); pointer-events: none; z-index: 200;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast--error { border-color: rgba(255,107,107,0.5); }
+
+  /* RESPONSIVE — collapse rails under a narrow viewport ======== */
+  @media (max-width: 1100px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto auto auto; overflow-y: auto; }
+    .app { height: auto; min-height: 100vh; overflow: auto; }
+    html, body { overflow: auto; }
+    .rail, .rail--right { border: none; border-bottom: 1px solid var(--border-subtle); }
+    .canvas { min-height: 60vh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="header">
+    <div class="header__brand">
+      <div class="header__title">Swiss Calendar Creator <em>· Web</em></div>
+    </div>
+    <div class="header__center" id="header-doc-info">A4 · 210 × 297 MM</div>
+    <nav class="header__nav">
+      <button class="nav-btn active" id="lang-es">ES</button>
+      <button class="nav-btn" id="lang-en">EN</button>
+      <span class="nav-sep"></span>
+      <button class="nav-btn" id="btn-about" data-i18n="about">Acerca de</button>
+    </nav>
+  </header>
+
+  <main class="main">
+
+    <!-- LEFT RAIL -->
+    <aside class="rail">
+
+      <!-- 1 · Documento -->
+      <div class="section">
+        <div class="section__header">
+          <span class="section__num">1</span>
+          <span class="section__title section__title--doc" data-i18n="document">Documento</span>
+          <div class="section__rule"></div>
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="format">Formato</span>
+          <select class="select" id="format">
+            <option value="custom" data-i18n="custom">Personalizado</option>
+            <option value="a2">A2 · 420 × 594 mm</option>
+            <option value="a3">A3 · 297 × 420 mm</option>
+            <option value="a4" selected>A4 · 210 × 297 mm</option>
+            <option value="a5">A5 · 148 × 210 mm</option>
+            <option value="letter">US Letter · 8.5 × 11 in</option>
+            <option value="tabloid">US Tabloid · 11 × 17 in</option>
+            <option value="poster-b2">Poster B2 · 500 × 707 mm</option>
+            <option value="square-1080">Square · 1080 × 1080 px</option>
+            <option value="wide-1920">Wide 16:9 · 1920 × 1080 px</option>
+            <option value="story-1080">Story 9:16 · 1080 × 1920 px</option>
+            <option value="screen-1440">Screen · 1440 × 1024 px</option>
+          </select>
+        </div>
+        <div class="dim">
+          <div class="dim__cell">
+            <span class="dim__label" data-i18n="width">Ancho</span>
+            <input class="dim__input" id="doc-w" type="number" min="10" step="1" value="210">
+          </div>
+          <div class="dim__cell">
+            <span class="dim__label" data-i18n="height">Alto</span>
+            <input class="dim__input" id="doc-h" type="number" min="10" step="1" value="297">
+          </div>
+          <button type="button" class="btn-swap" id="btn-swap" title="Intercambiar ancho/alto">&#8644;</button>
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="unit">Unidad</span>
+          <select class="select" id="unit">
+            <option value="mm" selected>MM · milímetros</option>
+            <option value="cm">CM · centímetros</option>
+            <option value="in">IN · pulgadas</option>
+            <option value="pt">PT · puntos</option>
+            <option value="px">PX · píxeles</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 2 · Calendario -->
+      <div class="section">
+        <div class="section__header">
+          <span class="section__num">2</span>
+          <span class="section__title section__title--cal" data-i18n="calendar">Calendario</span>
+          <div class="section__rule"></div>
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="view">Vista</span>
+          <div class="segment" id="seg-view">
+            <button class="segment__btn" data-view="0" data-i18n="viewYear">Año</button>
+            <button class="segment__btn active" data-view="1" data-i18n="viewMonth">Mes</button>
+            <button class="segment__btn" data-view="2" data-i18n="viewWeek">Semana</button>
+            <button class="segment__btn" data-view="3" data-i18n="viewDay">Día</button>
+          </div>
+        </div>
+        <div class="field">
+          <div class="field__row">
+            <span class="field__label" data-i18n="year">Año</span>
+            <input class="field__value" id="year" type="number" min="1900" max="2200" value="2026">
+          </div>
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="month">Mes</span>
+          <select class="select" id="month"></select>
+        </div>
+        <div class="field">
+          <div class="field__row">
+            <span class="field__label" data-i18n="day">Día</span>
+            <input class="field__value" id="day" type="number" min="1" max="31" value="1">
+          </div>
+          <input class="slider" id="day-slider" type="range" min="1" max="31" value="1">
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="weekStart">La semana empieza en</span>
+          <div class="segment" id="seg-weekstart">
+            <button class="segment__btn active" data-ws="1" data-i18n="monday">Lunes</button>
+            <button class="segment__btn" data-ws="0" data-i18n="sunday">Domingo</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="weekNum">Numeración de semanas</span>
+          <div class="segment" id="seg-weeknum">
+            <button class="segment__btn" data-wn="1" data-i18n="iso">ISO 8601</button>
+            <button class="segment__btn active" data-wn="0" data-i18n="from1">Desde 1</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 · Contenido -->
+      <div class="section">
+        <div class="section__header">
+          <span class="section__num">3</span>
+          <span class="section__title" data-i18n="content">Contenido</span>
+          <div class="section__rule"></div>
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="title">Título</span>
+          <input class="text-input" id="title" type="text" maxlength="60" data-i18n-placeholder="autoPlaceholder" placeholder="Automático">
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="subtitle">Subtítulo</span>
+          <input class="text-input" id="subtitle" type="text" maxlength="80" data-i18n-placeholder="autoPlaceholder" placeholder="Automático">
+        </div>
+        <p class="hint" data-i18n="contentHint">Dejalos vacíos para que se generen solos según la vista y la fecha.</p>
+      </div>
+
+      <!-- 4 · Elementos -->
+      <div class="section">
+        <div class="section__header">
+          <span class="section__num">4</span>
+          <span class="section__title" data-i18n="elements">Elementos</span>
+          <div class="section__rule"></div>
+        </div>
+        <div class="check-grid">
+          <label class="checkbox"><input type="checkbox" id="c-header" checked><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="elHeader">Encabezado de días</span></label>
+          <label class="checkbox"><input type="checkbox" id="c-adjacent" checked><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="elAdjacent">Meses contiguos</span></label>
+          <label class="checkbox"><input type="checkbox" id="c-grid" checked><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="elGrid">Filetes de retícula</span></label>
+          <label class="checkbox"><input type="checkbox" id="c-weeknums"><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="elWeekNums">Números de semana</span></label>
+          <label class="checkbox"><input type="checkbox" id="c-verticals"><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="elVerticals">Líneas verticales</span></label>
+          <label class="checkbox"><input type="checkbox" id="c-boldwknd"><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="elBoldWknd">Findes en negrita</span></label>
+          <label class="checkbox"><input type="checkbox" id="c-accentbar" checked><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="elAccentBar">Barra de acento</span></label>
+          <label class="checkbox"><input type="checkbox" id="c-today" checked><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="elToday">Marcar hoy</span></label>
+          <label class="checkbox"><input type="checkbox" id="c-events" checked><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="elEvents">Eventos y feriados</span></label>
+        </div>
+      </div>
+
+      <!-- 5 · Agenda -->
+      <div class="section" id="sec-agenda">
+        <div class="section__header">
+          <span class="section__num">5</span>
+          <span class="section__title" data-i18n="agenda">Agenda (vista Día)</span>
+          <div class="section__rule"></div>
+        </div>
+        <label class="checkbox"><input type="checkbox" id="c-agenda" checked><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="agShow">Mostrar franjas horarias</span></label>
+        <div class="field">
+          <div class="field__row">
+            <span class="field__label" data-i18n="agFrom">Desde (h)</span>
+            <input class="field__value" id="ag-from" type="number" min="0" max="23" value="8">
+          </div>
+        </div>
+        <div class="field">
+          <div class="field__row">
+            <span class="field__label" data-i18n="agTo">Hasta (h)</span>
+            <input class="field__value" id="ag-to" type="number" min="1" max="24" value="20">
+          </div>
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="agFormat">Formato de hora</span>
+          <div class="segment" id="seg-timefmt">
+            <button class="segment__btn" data-tf="0" data-i18n="fmt12">12 h</button>
+            <button class="segment__btn active" data-tf="1" data-i18n="fmt24">24 h</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 · Estilo -->
+      <div class="section">
+        <div class="section__header">
+          <span class="section__num">6</span>
+          <span class="section__title section__title--style" data-i18n="style">Estilo</span>
+          <div class="section__rule"></div>
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="typeface">Tipografía</span>
+          <select class="select" id="typeface">
+            <option value="helvetica" selected>Helvetica / Arial</option>
+            <option value="inter">Inter</option>
+            <option value="archivo">Archivo</option>
+            <option value="georgia">Georgia (serif)</option>
+            <option value="times">Times New Roman (serif)</option>
+            <option value="mono">Monospace</option>
+          </select>
+        </div>
+        <div class="color-row">
+          <span class="color-row__label" data-i18n="colInk">Tinta principal</span>
+          <input type="text" class="color-hex" id="col-ink-hex" value="#111111" maxlength="7">
+          <input type="color" class="color-swatch" id="col-ink" value="#111111">
+        </div>
+        <div class="color-row">
+          <span class="color-row__label" data-i18n="colAccent">Acento</span>
+          <input type="text" class="color-hex" id="col-accent-hex" value="#E30613" maxlength="7">
+          <input type="color" class="color-swatch" id="col-accent" value="#E30613">
+        </div>
+        <div class="color-row">
+          <span class="color-row__label" data-i18n="colRule">Filetes</span>
+          <input type="text" class="color-hex" id="col-rule-hex" value="#969696" maxlength="7">
+          <input type="color" class="color-swatch" id="col-rule" value="#969696">
+        </div>
+        <div class="color-row">
+          <span class="color-row__label" data-i18n="colMuted">Días atenuados</span>
+          <input type="text" class="color-hex" id="col-muted-hex" value="#B0B0B0" maxlength="7">
+          <input type="color" class="color-swatch" id="col-muted" value="#B0B0B0">
+        </div>
+        <div class="color-row">
+          <span class="color-row__label" data-i18n="colPaper">Papel</span>
+          <input type="text" class="color-hex" id="col-paper-hex" value="#FFFFFF" maxlength="7">
+          <input type="color" class="color-swatch" id="col-paper" value="#FFFFFF">
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- CENTER -->
+    <section class="canvas-wrap">
+      <div class="canvas-top">
+        <span class="canvas-top__label" data-i18n="preview">Previsualización</span>
+        <span class="canvas-top__alert" id="alert">—</span>
+      </div>
+      <div class="canvas">
+        <svg id="preview" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div class="canvas-bottom">
+        <div class="stat"><span class="stat__label" data-i18n="stView">Vista</span><span class="stat__value" id="st-view">—</span></div>
+        <div class="stat"><span class="stat__label" data-i18n="stSize">Tamaño</span><span class="stat__value" id="st-size">—</span></div>
+        <div class="stat"><span class="stat__label" data-i18n="stSpan">Periodo</span><span class="stat__value" id="st-span">—</span></div>
+        <div class="stat"><span class="stat__label" data-i18n="stEvents">Eventos</span><span class="stat__value" id="st-events">—</span></div>
+      </div>
+    </section>
+
+    <!-- RIGHT RAIL -->
+    <aside class="rail rail--right">
+      <div class="section">
+        <div class="section__header">
+          <span class="section__num">7</span>
+          <span class="section__title section__title--events" data-i18n="events">Eventos y feriados</span>
+          <div class="section__rule"></div>
+        </div>
+        <div class="field">
+          <span class="field__label" data-i18n="country">Feriados de</span>
+          <select class="select" id="country">
+            <option value="none" data-i18n="countryNone">Ninguno</option>
+            <option value="UY" data-i18n="countryUY">Uruguay</option>
+            <option value="AR" data-i18n="countryAR">Argentina</option>
+            <option value="CL" data-i18n="countryCL">Chile</option>
+            <option value="CO" data-i18n="countryCO">Colombia</option>
+            <option value="MX" data-i18n="countryMX">México</option>
+            <option value="PE" data-i18n="countryPE">Perú</option>
+            <option value="ES" data-i18n="countryES">España</option>
+            <option value="US" data-i18n="countryUS">Estados Unidos</option>
+          </select>
+        </div>
+        <p class="hint" data-i18n="countryHint">Feriados nacionales aproximados. Podés borrar los que no apliquen y sumar los tuyos.</p>
+
+        <div class="events-divider" data-i18n="addEvent">Agregar</div>
+        <div class="event-add">
+          <div class="event-add__row">
+            <input class="event-date" id="ev-date" type="date">
+            <input class="text-input" id="ev-label" type="text" maxlength="40" data-i18n-placeholder="evLabelPh" placeholder="Nota o evento">
+          </div>
+          <div class="event-add__row">
+            <label class="checkbox" style="flex:1"><input type="checkbox" id="ev-holiday"><span class="checkbox__box"></span><span class="checkbox__label" data-i18n="evAsHoliday">Resaltar como feriado</span></label>
+            <button class="btn" id="btn-add-event" data-i18n="add">Añadir</button>
+          </div>
+        </div>
+
+        <div class="events-divider" data-i18n="eventList">En este año</div>
+        <div class="event-list" id="event-list"></div>
+      </div>
+
+      <div class="section">
+        <div class="section__header">
+          <span class="section__num">8</span>
+          <span class="section__title" data-i18n="settings">Ajustes</span>
+          <div class="section__rule"></div>
+        </div>
+        <button class="btn" id="btn-import" style="width:100%; justify-content:center;" data-i18n="importJson">Importar JSON</button>
+        <button class="btn" id="btn-export" style="width:100%; justify-content:center;" data-i18n="exportJson">Exportar JSON</button>
+        <input class="hidden-input" type="file" id="file-input" accept=".json">
+      </div>
+    </aside>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer__group">
+      <a href="https://github.com/vicc3d/swiss-calendar-creator" target="_blank" rel="noopener" class="footer__link">GitHub</a>
+      <span class="footer__sep">·</span>
+      <a href="https://ko-fi.com/vicc3d" target="_blank" rel="noopener" class="footer__link footer__link--kofi">Ko-fi</a>
+    </div>
+    <div class="footer__group">
+      <button class="btn" id="btn-png" data-i18n="downloadPng">Descargar PNG</button>
+      <span class="info-wrap">
+        <button class="info-dot" id="btn-png-info" aria-label="Info" type="button">i</button>
+        <div class="info-pop" id="png-info-pop"></div>
+      </span>
+      <span class="footer__divider"></span>
+      <button class="btn" id="btn-copy" data-i18n="copySvg">Copiar SVG</button>
+      <button class="btn btn--primary" id="btn-download">
+        <span data-i18n="downloadSvg">Descargar SVG</span>
+        <span class="btn__kbd">⌘ ↵</span>
+      </button>
+    </div>
+  </footer>
+
+</div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 class="modal__title" id="modal-title">Acerca de</h2>
+    <p class="modal__body" id="modal-body"></p>
+    <button class="modal__close" id="modal-close">OK</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==============================================================
+   SWISS CALENDAR CREATOR — Web
+   Concept, UX/UI & Design: Victor Crespo · 3dvic.com
+   Calendar engine ported from the Affinity script: the four
+   drawXxx(B, area, cfg, L) functions are pure geometry and only
+   call the builder primitives (rect / rule / vrule / text /
+   richText). Here the builder writes SVG instead of Affinity nodes.
+   ============================================================== */
+"use strict";
+const VERSION = "v1.0";
+
+/* -------------------------------------------------------------- */
+/*  Strings — calendar content + UI, ES / EN                      */
+/* -------------------------------------------------------------- */
+const STR = {
+  es: {
+    months: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'],
+    daysLong: ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'],
+    daysShort: ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'],
+    daysMini: ['L','M','M','J','V','S','D'],
+    week: 'SEMANA', weekAbbr: 'SEM',
+    ui: {
+      about:'Acerca de', document:'Documento', format:'Formato', custom:'Personalizado',
+      width:'Ancho', height:'Alto', unit:'Unidad',
+      calendar:'Calendario', view:'Vista', viewYear:'Año', viewMonth:'Mes', viewWeek:'Semana', viewDay:'Día',
+      year:'Año', month:'Mes', day:'Día', weekStart:'La semana empieza en', monday:'Lunes', sunday:'Domingo',
+      weekNum:'Numeración de semanas', iso:'ISO 8601', from1:'Desde 1',
+      content:'Contenido', title:'Título', subtitle:'Subtítulo', autoPlaceholder:'Automático',
+      contentHint:'Dejalos vacíos para que se generen solos según la vista y la fecha.',
+      elements:'Elementos', elHeader:'Encabezado de días', elAdjacent:'Meses contiguos',
+      elGrid:'Filetes de retícula', elWeekNums:'Números de semana', elVerticals:'Líneas verticales',
+      elBoldWknd:'Findes en negrita', elAccentBar:'Barra de acento', elToday:'Marcar hoy', elEvents:'Eventos y feriados',
+      agenda:'Agenda (vista Día)', agShow:'Mostrar franjas horarias', agFrom:'Desde (h)', agTo:'Hasta (h)',
+      agFormat:'Formato de hora', fmt12:'12 h', fmt24:'24 h',
+      style:'Estilo', typeface:'Tipografía',
+      colInk:'Tinta principal', colAccent:'Acento', colRule:'Filetes', colMuted:'Días atenuados', colPaper:'Papel',
+      preview:'Previsualización',
+      stView:'Vista', stSize:'Tamaño', stSpan:'Periodo', stEvents:'Eventos',
+      events:'Eventos y feriados', country:'Feriados de', countryNone:'Ninguno',
+      countryUY:'Uruguay', countryAR:'Argentina', countryCL:'Chile', countryCO:'Colombia',
+      countryMX:'México', countryPE:'Perú', countryES:'España', countryUS:'Estados Unidos',
+      countryHint:'Feriados nacionales aproximados. Podés borrar los que no apliquen y sumar los tuyos.',
+      addEvent:'Agregar', evLabelPh:'Nota o evento', evAsHoliday:'Resaltar como feriado', add:'Añadir',
+      eventList:'En este año', settings:'Ajustes', importJson:'Importar JSON', exportJson:'Exportar JSON',
+      copySvg:'Copiar SVG', downloadPng:'Descargar PNG', downloadSvg:'Descargar SVG',
+      pngInfo:'El PNG se genera rasterizando el SVG con las tipografías disponibles en tu navegador. El stack Helvetica / Arial y las fuentes que carga la app (Inter, Archivo) se ven bien; una tipografía instalada solo en tu sistema puede no coincidir en el PNG.\n\nResolución: 2× en formatos px, 150 ppp en formatos físicos (tope 4000 px). Para conservar el texto vectorial y las capas, exportá el SVG.',
+      spanYear:'año completo', spanDays:d=>`${d} días`, spanWeek:'una semana', spanDay:'un día',
+      alertVertical:'Proporción vertical', alertLandscape:'Proporción apaisada', alertSquare:'Proporción cuadrada',
+      alertTight:'Área muy estrecha para esta vista',
+      toastCopied:'SVG copiado al portapapeles', toastDownload:'SVG descargado',
+      toastPngDownload:'PNG descargado', toastPngError:'No se pudo generar el PNG',
+      toastImport:'Ajustes importados', toastImportError:'No se pudo leer el JSON', toastExport:'Ajustes exportados',
+      toastEventNeeds:'Poné fecha y texto para el evento', toastEventAdded:'Evento añadido',
+      aboutTitle:'Acerca de Swiss Calendar Creator',
+      aboutBody:`Swiss Calendar Creator ${VERSION}\n\nGenera calendarios de estética International Typographic Style (diseño suizo): retícula estricta, palo seco alineado a la izquierda, filetes finos, mucho blanco y una única tinta de acento.\n\nCuatro vistas — Año, Mes, Semana y Día — en español o inglés, con feriados por país y notas propias. Exporta un SVG con grupos nombrados que Illustrator, Affinity e Inkscape reconocen como capas, o un PNG para compartir.\n\nEs la contraparte web del script para Affinity (by Canva). Comparte el motor y la lógica de fechas; las vistas Semana y Día se rehicieron para llenar el lienzo, porque en la web controlás la hoja y no una selección.\n\nLos feriados incluidos son nacionales y aproximados: revisalos siempre contra la normativa vigente.\n\n3dvic.com · MIT License`
+    }
+  },
+  en: {
+    months: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+    daysLong: ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
+    daysShort: ['MON','TUE','WED','THU','FRI','SAT','SUN'],
+    daysMini: ['M','T','W','T','F','S','S'],
+    week: 'WEEK', weekAbbr: 'WK',
+    ui: {
+      about:'About', document:'Document', format:'Format', custom:'Custom',
+      width:'Width', height:'Height', unit:'Unit',
+      calendar:'Calendar', view:'View', viewYear:'Year', viewMonth:'Month', viewWeek:'Week', viewDay:'Day',
+      year:'Year', month:'Month', day:'Day', weekStart:'Week starts on', monday:'Monday', sunday:'Sunday',
+      weekNum:'Week numbering', iso:'ISO 8601', from1:'From 1',
+      content:'Content', title:'Title', subtitle:'Subtitle', autoPlaceholder:'Automatic',
+      contentHint:'Leave empty to auto-generate them from the view and date.',
+      elements:'Elements', elHeader:'Weekday header', elAdjacent:'Adjacent months',
+      elGrid:'Grid rules', elWeekNums:'Week numbers', elVerticals:'Vertical lines',
+      elBoldWknd:'Bold weekends', elAccentBar:'Accent bar', elToday:'Mark today', elEvents:'Events & holidays',
+      agenda:'Agenda (Day view)', agShow:'Show hour slots', agFrom:'From (h)', agTo:'To (h)',
+      agFormat:'Time format', fmt12:'12 h', fmt24:'24 h',
+      style:'Style', typeface:'Typeface',
+      colInk:'Primary ink', colAccent:'Accent', colRule:'Rules', colMuted:'Dimmed days', colPaper:'Paper',
+      preview:'Preview',
+      stView:'View', stSize:'Size', stSpan:'Span', stEvents:'Events',
+      events:'Events & holidays', country:'Holidays of', countryNone:'None',
+      countryUY:'Uruguay', countryAR:'Argentina', countryCL:'Chile', countryCO:'Colombia',
+      countryMX:'Mexico', countryPE:'Peru', countryES:'Spain', countryUS:'United States',
+      countryHint:'Approximate national holidays. Delete the ones that don’t apply and add your own.',
+      addEvent:'Add', evLabelPh:'Note or event', evAsHoliday:'Highlight as holiday', add:'Add',
+      eventList:'This year', settings:'Settings', importJson:'Import JSON', exportJson:'Export JSON',
+      copySvg:'Copy SVG', downloadPng:'Download PNG', downloadSvg:'Download SVG',
+      pngInfo:'The PNG is rasterised from the SVG using the fonts available in your browser. The Helvetica / Arial stack and the fonts the app loads (Inter, Archivo) render fine; a typeface installed only on your system may not match in the PNG.\n\nResolution: 2× for px formats, 150 dpi for physical formats (capped at 4000 px). To keep the text vector and the layers, export SVG.',
+      spanYear:'full year', spanDays:d=>`${d} days`, spanWeek:'one week', spanDay:'one day',
+      alertVertical:'Portrait proportion', alertLandscape:'Landscape proportion', alertSquare:'Square proportion',
+      alertTight:'Area too tight for this view',
+      toastCopied:'SVG copied to clipboard', toastDownload:'SVG downloaded',
+      toastPngDownload:'PNG downloaded', toastPngError:'Could not generate the PNG',
+      toastImport:'Settings imported', toastImportError:'Could not read the JSON', toastExport:'Settings exported',
+      toastEventNeeds:'Set a date and a label for the event', toastEventAdded:'Event added',
+      aboutTitle:'About Swiss Calendar Creator',
+      aboutBody:`Swiss Calendar Creator ${VERSION}\n\nGenerates calendars in the International Typographic Style: strict grid, flush-left sans-serif, hairline rules, generous white space and a single accent ink.\n\nFour views — Year, Month, Week and Day — in English or Spanish, with per-country holidays and your own notes. Exports an SVG with named groups that Illustrator, Affinity and Inkscape read as layers, or a PNG to share.\n\nIt is the web counterpart of the Affinity (by Canva) script. It shares the engine and the date logic; the Week and Day views were reworked to fill the canvas, since on the web you control the sheet rather than a selection.\n\nBundled holidays are national and approximate: always check them against current legislation.\n\n3dvic.com · MIT License`
+    }
+  }
+};
+
+let lang = "es";
+const L = () => STR[lang];
+const U = () => STR[lang].ui;
+const t = k => { const v = U()[k]; return typeof v === "function" ? v : (v ?? k); };
+
+/* -------------------------------------------------------------- */
+/*  Date utilities  (portable, identical to the Affinity script)  */
+/* -------------------------------------------------------------- */
+function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+function columnOf(jsDay, weekStartsMonday) { return weekStartsMonday ? (jsDay + 6) % 7 : jsDay; }
+function isoWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  return 1 + Math.round((d - firstThursday) / 604800000);
+}
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+/* -------------------------------------------------------------- */
+/*  Holidays  — national, approximate. Rule DSL:                  */
+/*   { m, d }            fixed month/day (m: 1-12)                */
+/*   { easter: offset }  days from Easter Sunday                  */
+/*   { nth, wd, m }      nth weekday of month (nth<0 counts back; */
+/*                       wd: 0=Sun..6=Sat)                        */
+/* -------------------------------------------------------------- */
+function easterSunday(year) {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+  const dd = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - dd - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const mth = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * mth + 114) / 31);
+  const day = ((h + l - 7 * mth + 114) % 31) + 1;
+  return new Date(year, month - 1, day);
+}
+function nthWeekday(year, month0, wd, nth) {
+  if (nth > 0) {
+    const first = new Date(year, month0, 1);
+    const shift = (wd - first.getDay() + 7) % 7;
+    return new Date(year, month0, 1 + shift + (nth - 1) * 7);
+  }
+  const last = new Date(year, month0 + 1, 0);
+  const shift = (last.getDay() - wd + 7) % 7;
+  return new Date(year, month0, last.getDate() - shift + (nth + 1) * 7);
+}
+const HOLIDAYS = {
+  UY: [
+    {m:1,d:1,es:'Año Nuevo',en:'New Year'},{m:1,d:6,es:'Día de Reyes',en:'Epiphany'},
+    {easter:-2,es:'Viernes Santo',en:'Good Friday'},
+    {m:4,d:19,es:'Desembarco de los 33 Orientales',en:'Landing of the 33 Patriots'},
+    {m:5,d:1,es:'Día de los Trabajadores',en:'Labour Day'},
+    {m:5,d:18,es:'Batalla de Las Piedras',en:'Battle of Las Piedras'},
+    {m:6,d:19,es:'Natalicio de Artigas',en:'Artigas’ Birthday'},
+    {m:7,d:18,es:'Jura de la Constitución',en:'Constitution Day'},
+    {m:8,d:25,es:'Declaratoria de la Independencia',en:'Independence Day'},
+    {m:10,d:12,es:'Día de la Diversidad Cultural',en:'Day of Cultural Diversity'},
+    {m:11,d:2,es:'Día de los Difuntos',en:'All Souls’ Day'},
+    {m:12,d:25,es:'Navidad',en:'Christmas'}
+  ],
+  AR: [
+    {m:1,d:1,es:'Año Nuevo',en:'New Year'},
+    {easter:-48,es:'Carnaval',en:'Carnival'},{easter:-47,es:'Carnaval',en:'Carnival'},
+    {m:3,d:24,es:'Día de la Memoria',en:'Day of Remembrance'},
+    {m:4,d:2,es:'Día del Veterano (Malvinas)',en:'Malvinas Day'},
+    {easter:-2,es:'Viernes Santo',en:'Good Friday'},
+    {m:5,d:1,es:'Día del Trabajador',en:'Labour Day'},
+    {m:5,d:25,es:'Revolución de Mayo',en:'May Revolution'},
+    {m:6,d:20,es:'Paso a la Inmortalidad de Belgrano',en:'Belgrano Day'},
+    {m:7,d:9,es:'Día de la Independencia',en:'Independence Day'},
+    {m:8,d:17,es:'Paso a la Inmortalidad de San Martín',en:'San Martín Day'},
+    {m:10,d:12,es:'Día del Respeto a la Diversidad Cultural',en:'Day of Cultural Diversity'},
+    {m:11,d:20,es:'Día de la Soberanía Nacional',en:'National Sovereignty Day'},
+    {m:12,d:8,es:'Inmaculada Concepción',en:'Immaculate Conception'},
+    {m:12,d:25,es:'Navidad',en:'Christmas'}
+  ],
+  CL: [
+    {m:1,d:1,es:'Año Nuevo',en:'New Year'},
+    {easter:-2,es:'Viernes Santo',en:'Good Friday'},{easter:-1,es:'Sábado Santo',en:'Holy Saturday'},
+    {m:5,d:1,es:'Día del Trabajo',en:'Labour Day'},
+    {m:5,d:21,es:'Día de las Glorias Navales',en:'Navy Day'},
+    {m:6,d:20,es:'Día de los Pueblos Indígenas',en:'Indigenous Peoples’ Day'},
+    {m:6,d:29,es:'San Pedro y San Pablo',en:'Sts Peter and Paul'},
+    {m:7,d:16,es:'Virgen del Carmen',en:'Our Lady of Mount Carmel'},
+    {m:8,d:15,es:'Asunción de la Virgen',en:'Assumption'},
+    {m:9,d:18,es:'Independencia Nacional',en:'Independence Day'},
+    {m:9,d:19,es:'Día de las Glorias del Ejército',en:'Army Day'},
+    {m:10,d:12,es:'Encuentro de Dos Mundos',en:'Columbus Day'},
+    {m:10,d:31,es:'Día de las Iglesias Evangélicas',en:'Reformation Day'},
+    {m:11,d:1,es:'Día de Todos los Santos',en:'All Saints’ Day'},
+    {m:12,d:8,es:'Inmaculada Concepción',en:'Immaculate Conception'},
+    {m:12,d:25,es:'Navidad',en:'Christmas'}
+  ],
+  CO: [
+    {m:1,d:1,es:'Año Nuevo',en:'New Year'},
+    {easter:-3,es:'Jueves Santo',en:'Maundy Thursday'},{easter:-2,es:'Viernes Santo',en:'Good Friday'},
+    {m:5,d:1,es:'Día del Trabajo',en:'Labour Day'},
+    {m:7,d:20,es:'Día de la Independencia',en:'Independence Day'},
+    {m:8,d:7,es:'Batalla de Boyacá',en:'Battle of Boyacá'},
+    {m:12,d:8,es:'Inmaculada Concepción',en:'Immaculate Conception'},
+    {m:12,d:25,es:'Navidad',en:'Christmas'}
+  ],
+  MX: [
+    {m:1,d:1,es:'Año Nuevo',en:'New Year'},
+    {nth:1,wd:1,m:2,es:'Día de la Constitución',en:'Constitution Day'},
+    {nth:3,wd:1,m:3,es:'Natalicio de Benito Juárez',en:'Benito Juárez’s Birthday'},
+    {m:5,d:1,es:'Día del Trabajo',en:'Labour Day'},
+    {m:9,d:16,es:'Día de la Independencia',en:'Independence Day'},
+    {nth:3,wd:1,m:11,es:'Revolución Mexicana',en:'Revolution Day'},
+    {m:12,d:25,es:'Navidad',en:'Christmas'}
+  ],
+  PE: [
+    {m:1,d:1,es:'Año Nuevo',en:'New Year'},
+    {easter:-3,es:'Jueves Santo',en:'Maundy Thursday'},{easter:-2,es:'Viernes Santo',en:'Good Friday'},
+    {m:5,d:1,es:'Día del Trabajo',en:'Labour Day'},
+    {m:6,d:29,es:'San Pedro y San Pablo',en:'Sts Peter and Paul'},
+    {m:7,d:28,es:'Fiestas Patrias',en:'Independence Day'},{m:7,d:29,es:'Fiestas Patrias',en:'Independence Day'},
+    {m:8,d:30,es:'Santa Rosa de Lima',en:'St Rose of Lima'},
+    {m:10,d:8,es:'Combate de Angamos',en:'Battle of Angamos'},
+    {m:11,d:1,es:'Día de Todos los Santos',en:'All Saints’ Day'},
+    {m:12,d:8,es:'Inmaculada Concepción',en:'Immaculate Conception'},
+    {m:12,d:25,es:'Navidad',en:'Christmas'}
+  ],
+  ES: [
+    {m:1,d:1,es:'Año Nuevo',en:'New Year'},{m:1,d:6,es:'Epifanía del Señor',en:'Epiphany'},
+    {easter:-2,es:'Viernes Santo',en:'Good Friday'},
+    {m:5,d:1,es:'Fiesta del Trabajo',en:'Labour Day'},
+    {m:8,d:15,es:'Asunción de la Virgen',en:'Assumption'},
+    {m:10,d:12,es:'Fiesta Nacional de España',en:'National Day'},
+    {m:11,d:1,es:'Día de Todos los Santos',en:'All Saints’ Day'},
+    {m:12,d:6,es:'Día de la Constitución',en:'Constitution Day'},
+    {m:12,d:8,es:'Inmaculada Concepción',en:'Immaculate Conception'},
+    {m:12,d:25,es:'Navidad',en:'Christmas'}
+  ],
+  US: [
+    {m:1,d:1,es:'Año Nuevo',en:'New Year’s Day'},
+    {nth:3,wd:1,m:1,es:'Día de Martin Luther King',en:'Martin Luther King Jr. Day'},
+    {nth:3,wd:1,m:2,es:'Día de los Presidentes',en:'Presidents’ Day'},
+    {nth:-1,wd:1,m:5,es:'Día de los Caídos',en:'Memorial Day'},
+    {m:6,d:19,es:'Juneteenth',en:'Juneteenth'},
+    {m:7,d:4,es:'Día de la Independencia',en:'Independence Day'},
+    {nth:1,wd:1,m:9,es:'Día del Trabajo',en:'Labor Day'},
+    {nth:2,wd:1,m:10,es:'Día de la Raza',en:'Columbus Day'},
+    {m:11,d:11,es:'Día de los Veteranos',en:'Veterans Day'},
+    {nth:4,wd:4,m:11,es:'Acción de Gracias',en:'Thanksgiving'},
+    {m:12,d:25,es:'Navidad',en:'Christmas'}
+  ]
+};
+function countryHolidays(code, year) {
+  const rules = HOLIDAYS[code];
+  if (!rules) return [];
+  const easter = easterSunday(year);
+  return rules.map(r => {
+    let dt;
+    if (typeof r.easter === "number") dt = new Date(year, easter.getMonth(), easter.getDate() + r.easter);
+    else if (typeof r.nth === "number") dt = nthWeekday(year, r.m - 1, r.wd, r.nth);
+    else dt = new Date(year, r.m - 1, r.d);
+    return { month: dt.getMonth(), day: dt.getDate(), label: r[lang] || r.es, holiday: true, preset: true };
+  });
+}
+
+/* -------------------------------------------------------------- */
+/*  State                                                          */
+/* -------------------------------------------------------------- */
+const FORMATS = {
+  a2:{w:420,h:594,unit:'mm'}, a3:{w:297,h:420,unit:'mm'}, a4:{w:210,h:297,unit:'mm'}, a5:{w:148,h:210,unit:'mm'},
+  letter:{w:8.5,h:11,unit:'in'}, tabloid:{w:11,h:17,unit:'in'},
+  'poster-b2':{w:500,h:707,unit:'mm'},
+  'square-1080':{w:1080,h:1080,unit:'px'}, 'wide-1920':{w:1920,h:1080,unit:'px'},
+  'story-1080':{w:1080,h:1920,unit:'px'}, 'screen-1440':{w:1440,h:1024,unit:'px'}
+};
+const TO_PT = { pt:1, mm:2.834645, cm:28.34645, in:72, px:0.75 };
+const toPt = (v,u) => v * TO_PT[u];
+const fromPt = (v,u) => v / TO_PT[u];
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+const TYPEFACES = {
+  helvetica: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+  inter: 'Inter, "Helvetica Neue", Arial, sans-serif',
+  archivo: 'Archivo, "Helvetica Neue", Arial, sans-serif',
+  georgia: 'Georgia, "Times New Roman", serif',
+  times: '"Times New Roman", Times, serif',
+  mono: '"JetBrains Mono", "SF Mono", Menlo, monospace'
+};
+
+const now = new Date();
+const state = {
+  docW: 210, docH: 297, unit: 'mm',
+  view: 1, year: now.getFullYear(), month: now.getMonth(), day: now.getDate(),
+  weekStartsMonday: true, weekNumberIso: false,
+  title: '', subtitle: '',
+  showHeader: true, showAdjacent: true, showGrid: true, showWeekNumbers: false,
+  showVerticals: false, boldWeekend: false, showAccentBar: true, markToday: true, showEvents: true,
+  showAgenda: true, agendaFrom: 8, agendaTo: 20, agenda24h: true,
+  typeface: 'helvetica',
+  cInk: '#111111', cAccent: '#E30613', cRule: '#969696', cMuted: '#B0B0B0', cPaper: '#FFFFFF',
+  country: 'none',
+  userEvents: []   // { month, day, label, holiday }
+};
+
+/* -------------------------------------------------------------- */
+/*  SVG builder — the drawing layer (replaces Affinity nodes)     */
+/* -------------------------------------------------------------- */
+const ALIGN = { left:'start', center:'middle', right:'end' };
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function makeSVGBuilder(fontFamily) {
+  const parts = [];
+  const F = fontFamily;
+  function rect(x, y, w, h, colour) {
+    if (w <= 0 || h <= 0) return;
+    parts.push(`<rect x="${+x.toFixed(3)}" y="${+y.toFixed(3)}" width="${+w.toFixed(3)}" height="${+h.toFixed(3)}" fill="${colour}"/>`);
+  }
+  function rule(x, y, w, thickness, colour) { rect(x, y - thickness / 2, w, thickness, colour); }
+  function vrule(x, y, h, thickness, colour) { rect(x - thickness / 2, y, thickness, h, colour); }
+  function textPos(x, w, align) {
+    if (align === 'center') return x + w / 2;
+    if (align === 'right') return x + w;
+    return x;
+  }
+  function text(x, y, w, h, str, face, sizePx, colour, align) {
+    align = align || 'left';
+    const tx = textPos(x, w, align);
+    const ty = y + sizePx * 0.82;
+    parts.push(
+      `<text x="${+tx.toFixed(3)}" y="${+ty.toFixed(3)}" font-family='${F}' font-weight="${face.weight}" ` +
+      `font-size="${+sizePx.toFixed(3)}" fill="${colour}" text-anchor="${ALIGN[align]}"` +
+      (face.italic ? ` font-style="italic"` : '') + `>${esc(str)}</text>`
+    );
+  }
+  function richText(x, y, w, h, runs, sizePx, align) {
+    align = align || 'left';
+    const tx = textPos(x, w, align);
+    const ty = y + sizePx * 0.82;
+    let inner = '';
+    runs.forEach((r) => {
+      inner += `<tspan font-weight="${r.face.weight}" fill="${r.colour}"` +
+        (r.size ? ` font-size="${+r.size.toFixed(3)}"` : '') + `>${esc(r.text)}</tspan>`;
+    });
+    parts.push(
+      `<text x="${+tx.toFixed(3)}" y="${+ty.toFixed(3)}" font-family='${F}' font-size="${+sizePx.toFixed(3)}" ` +
+      `text-anchor="${ALIGN[align]}">${inner}</text>`
+    );
+  }
+  function group(id, fn) { parts.push(`<g class="${id}" inkscape:groupmode="layer" inkscape:label="${id}">`); fn(); parts.push(`</g>`); }
+  return { rect, rule, vrule, text, richText, group, parts };
+}
+
+/* -------------------------------------------------------------- */
+/*  Event helpers                                                  */
+/* -------------------------------------------------------------- */
+function allEvents(cfg) {
+  return cfg.showEvents
+    ? countryHolidays(cfg.country, cfg.year).concat(cfg.userEvents)
+    : [];
+}
+function eventsOn(cfg, d) {
+  return cfg._events.filter(e => e.month === d.getMonth() && e.day === d.getDate());
+}
+function isHoliday(cfg, d) { return eventsOn(cfg, d).some(e => e.holiday); }
+
+/* -------------------------------------------------------------- */
+/*  Views — ported from the Affinity script                       */
+/* -------------------------------------------------------------- */
+function drawMonth(B, area, cfg, S) {
+  const { rect, rule, vrule, text } = B;
+  const { year, month, weekStartsMonday, showGrid, showVerticals, showHeader,
+          boldWeekend, showAdjacent, showWeekNumbers, weekNumberIso, showAccentBar, today, C, F } = cfg;
+
+  const margin = Math.min(area.w, area.h) * 0.055;
+  const gx = area.x + margin, gy0 = area.y + margin, gw = area.w - margin * 2;
+  const k = Math.max(area.w, area.h);   // scale reference (mm ~300, px ~1080, in ~11)
+
+  const titleSize = area.w * 0.052;
+  const titleH = titleSize * 1.25;
+  text(gx, gy0, gw * 0.8, titleH * 1.6, cfg.titleText.toUpperCase(), F.bold, titleSize, C.ink);
+  text(gx, gy0 + titleH * 0.02, gw, titleH * 1.6, cfg.subText, F.regular, titleSize, C.ink, 'right');
+  if (showAccentBar) rect(gx, gy0 + titleH * 1.45, titleSize * 1.5, Math.max(area.w * 0.006, k * 0.003), C.accent);
+
+  const wkColW = showWeekNumbers ? Math.max(margin, gw * 0.05) : 0;
+  const wkGap  = showWeekNumbers ? gw * 0.018 : 0;
+  const gridX = gx + wkColW + wkGap;
+  const gridW = gw - wkColW - wkGap;
+  const colW = gridW / 7;
+
+  const first = new Date(year, month, 1);
+  const startCol = columnOf(first.getDay(), weekStartsMonday);
+  const dim = daysInMonth(year, month);
+  const numWeeks = Math.ceil((startCol + dim) / 7);
+
+  const gridTop = gy0 + titleH * 2.0;
+  const gridBottom = area.y + area.h - margin;
+
+  const hair = Math.max(area.w * 0.0012, k * 0.0006);
+  const hairStrong = hair * 2;
+  const inset = colW * 0.08;
+  const headSize = Math.max(colW * 0.185, area.w * 0.013);
+  const headerH = showHeader ? headSize * 2.3 : 0;
+  const bodyTop = gridTop + headerH;
+  const rowH = (gridBottom - bodyTop) / numWeeks;
+  const daySize = Math.min(rowH * 0.24, colW * 0.34);
+  const cellPadTop = rowH * 0.16;
+  const eventSize = Math.min(daySize * 0.44, colW * 0.12);
+  const roomForEvents = cfg.showEvents && rowH > daySize * 2.8;
+
+  if (showHeader) {
+    const headY = gridTop + (headerH - headSize) * 0.34;
+    for (let c = 0; c < 7; c++) {
+      const isWknd = weekStartsMonday ? (c >= 5) : (c === 0 || c === 6);
+      text(gridX + c * colW + inset, headY, colW - inset * 2, headerH,
+           S.daysShort[weekStartsMonday ? c : (c + 6) % 7], F.medium, headSize, isWknd ? C.accent : C.ink);
+    }
+    if (showWeekNumbers) {
+      text(gx - wkColW, headY, wkColW * 2, headerH, S.weekAbbr, F.medium, headSize, C.muted, 'right');
+    }
+  }
+
+  if (showGrid) {
+    for (let r = 0; r <= numWeeks; r++) {
+      const yy = bodyTop + r * rowH;
+      const strong = r === 0;
+      const x0 = strong && showWeekNumbers ? gx : gridX;
+      const w0 = strong && showWeekNumbers ? gw : gridW;
+      rule(x0, yy, w0, strong ? hairStrong : hair, strong ? C.ink : C.rule);
+    }
+    if (showVerticals) for (let c = 0; c <= 7; c++) vrule(gridX + c * colW, bodyTop, rowH * numWeeks, hair, C.rule);
+  }
+
+  const drawCell = (dObj, col, row, muted) => {
+    const cx = gridX + col * colW;
+    const cy = bodyTop + row * rowH;
+    const isWknd = weekStartsMonday ? (col >= 5) : (col === 0 || col === 6);
+    const isToday = today && sameDay(dObj, today);
+    const evs = (!muted && cfg.showEvents) ? eventsOn(cfg, dObj) : [];
+    const hol = evs.some(e => e.holiday);
+    let colour = muted ? C.muted : (isWknd || hol ? C.accent : C.ink);
+    let face = F.regular;
+    if (!muted && isWknd && boldWeekend) face = F.bold;
+    if (hol) face = F.bold;
+    if (isToday) { colour = C.accent; face = F.bold; }
+    text(cx + inset, cy + cellPadTop, colW - inset, rowH * 0.5, dObj.getDate(), face, daySize, colour);
+    if (isToday) rect(cx + inset, cy + cellPadTop + daySize * 1.15, daySize * 1.1, hairStrong * 1.5, C.accent);
+    if (evs.length && roomForEvents) {
+      const label = evs[0].label + (evs.length > 1 ? ` +${evs.length - 1}` : '');
+      text(cx + inset, cy + cellPadTop + daySize * 1.5, colW - inset * 1.4, eventSize * 1.4,
+           label, F.regular, eventSize, hol ? C.accent : C.muted);
+    }
+  };
+
+  const prevDim = daysInMonth(month === 0 ? year - 1 : year, (month + 11) % 12);
+  if (showAdjacent) for (let c = 0; c < startCol; c++) {
+    const d = prevDim - startCol + 1 + c;
+    drawCell(new Date(year, month - 1, d), c, 0, true);
+  }
+  for (let day = 1; day <= dim; day++) {
+    const cell = startCol + day - 1;
+    drawCell(new Date(year, month, day), cell % 7, Math.floor(cell / 7), false);
+  }
+  if (showAdjacent) {
+    const used = startCol + dim, total = numWeeks * 7;
+    for (let i = 0; i < total - used; i++) drawCell(new Date(year, month + 1, i + 1), (used + i) % 7, Math.floor((used + i) / 7), true);
+  }
+
+  if (showWeekNumbers) {
+    let week1Start = null;
+    if (!weekNumberIso) {
+      const jan1 = new Date(year, 0, 1);
+      const off = weekStartsMonday ? ((jan1.getDay() + 6) % 7) : jan1.getDay();
+      week1Start = new Date(year, 0, 1 - off);
+    }
+    for (let r = 0; r < numWeeks; r++) {
+      const firstCellDay = 1 + r * 7 - startCol;
+      let wn;
+      if (weekNumberIso) {
+        const mondayShift = weekStartsMonday ? 0 : 1;
+        wn = isoWeek(new Date(year, month, firstCellDay + mondayShift));
+      } else {
+        wn = Math.round((new Date(year, month, firstCellDay) - week1Start) / 604800000) + 1;
+      }
+      text(gx, bodyTop + r * rowH + cellPadTop, wkColW, rowH * 0.5, wn, F.regular, daySize * 0.72, C.muted, 'right');
+    }
+  }
+}
+
+function drawYear(B, area, cfg, S) {
+  const { text, rect } = B;
+  const { year, weekStartsMonday, showHeader, boldWeekend, showAccentBar, today, C, F } = cfg;
+
+  const margin = Math.min(area.w, area.h) * 0.05;
+  const gx = area.x + margin, gy = area.y + margin;
+  const gw = area.w - margin * 2, gh = area.h - margin * 2;
+  const k = Math.max(area.w, area.h);   // scale reference (mm ~300, px ~1080, in ~11)
+
+  // Month grid adapts to the canvas proportion so the 12 mini-months keep a
+  // usable aspect ratio instead of being crushed on wide / tall sheets.
+  const ratio = gw / gh;
+  let cols, rows;
+  if (ratio >= 1.5) { cols = 6; rows = 2; }
+  else if (ratio <= 0.62) { cols = 2; rows = 6; }
+  else if (ratio <= 0.9) { cols = 3; rows = 4; }
+  else { cols = 4; rows = 3; }
+
+  const titleSize = Math.min(area.w * 0.032, gh * 0.06);
+  const titleH = titleSize * 1.6;
+  text(gx, gy, gw, titleH * 1.4, cfg.titleText, F.bold, titleSize, C.ink);
+  if (cfg.subText) text(gx, gy, gw, titleH * 1.4, cfg.subText, F.regular, titleSize, C.muted, 'right');
+  if (showAccentBar) rect(gx, gy + titleH * 1.05, titleSize * 1.4, Math.max(area.w * 0.004, k * 0.003), C.accent);
+
+  const gutterX = gw * (cols > 4 ? 0.02 : 0.035);
+  const gutterY = gh * (rows > 3 ? 0.03 : 0.05);
+  const areaTop = gy + titleH * 1.9;
+  const cellW = (gw - gutterX * (cols - 1)) / cols;
+  const cellH = (gh - (areaTop - gy) - gutterY * (rows - 1)) / rows;
+
+  // Sizes clamped against BOTH the cell width and the row height — the row
+  // height is the tight constraint on wide sheets, the width on tall ones.
+  const mTitleSize = Math.min(cellW * 0.11, cellH * 0.13);
+  const innerTop = mTitleSize * 1.9;
+  const rowH = (cellH - innerTop) / 7;               // 6 week rows + 1 header row
+  const colW = cellW / 7;
+  const numSize = Math.min(cellW * 0.082, rowH * 0.66);
+  const headSize = Math.min(cellW * 0.07, rowH * 0.58);
+
+  for (let m = 0; m < 12; m++) {
+    const cx = gx + (m % cols) * (cellW + gutterX);
+    const cy = areaTop + Math.floor(m / cols) * (cellH + gutterY);
+    text(cx, cy, cellW, mTitleSize * 1.4, S.months[m].toUpperCase(), F.bold, mTitleSize, C.ink);
+
+    const gridTop = cy + innerTop;
+
+    if (showHeader) for (let c = 0; c < 7; c++) {
+      const isWknd = weekStartsMonday ? (c >= 5) : (c === 0 || c === 6);
+      text(cx + c * colW, gridTop, colW, rowH, S.daysMini[weekStartsMonday ? c : (c + 6) % 7],
+           F.medium, headSize, isWknd ? C.accent : C.muted, 'center');
+    }
+    const bodyTop = gridTop + (showHeader ? rowH : 0);
+    const first = new Date(year, m, 1);
+    const startCol = columnOf(first.getDay(), weekStartsMonday);
+    const dim = daysInMonth(year, m);
+    for (let day = 1; day <= dim; day++) {
+      const cell = startCol + day - 1;
+      const col = cell % 7, row = Math.floor(cell / 7);
+      const isWknd = weekStartsMonday ? (col >= 5) : (col === 0 || col === 6);
+      const dObj = new Date(year, m, day);
+      const isToday = today && sameDay(dObj, today);
+      const hol = cfg.showEvents && isHoliday(cfg, dObj);
+      let colour = (isWknd || hol) ? C.accent : C.ink;
+      let face = (isWknd && boldWeekend) || hol ? F.bold : F.regular;
+      if (isToday) { colour = C.accent; face = F.bold; }
+      text(cx + col * colW, bodyTop + row * rowH, colW, rowH, day, face, numSize, colour, 'center');
+    }
+  }
+}
+
+// WEEK — 7 columns that fill the whole area, whatever its proportion.
+// On the web the user only controls the canvas, so the view stretches to it:
+// full-height columns, a strong header rule, and light writing lines that
+// keep a constant rhythm across every column (a real weekly planner).
+function drawWeek(B, area, cfg, S) {
+  const { text, rule, vrule, rect } = B;
+  const { year, month, day, weekStartsMonday, showGrid, showAccentBar, today, C, F } = cfg;
+
+  const margin = Math.min(area.w, area.h) * 0.06;
+  const gx = area.x + margin, gy = area.y + margin;
+  const gw = area.w - margin * 2, gh = area.h - margin * 2;
+  const k = Math.max(area.w, area.h);   // scale reference (mm ~300, px ~1080, in ~11)
+
+  const ref = new Date(year, month, day);
+  const refCol = columnOf(ref.getDay(), weekStartsMonday);
+  const monday = new Date(year, month, day - refCol);
+
+  const titleSize = Math.min(area.w * 0.030, gh * 0.055);
+  const titleH = titleSize * 1.6;
+  text(gx, gy, gw * 0.7, titleH * 1.4, cfg.titleText.toUpperCase(), F.bold, titleSize, C.ink);
+  text(gx, gy, gw, titleH * 1.4, cfg.subText, F.regular, titleSize, C.accent, 'right');
+  if (showAccentBar) rect(gx, gy + titleH * 1.4, titleSize * 1.5, Math.max(area.w * 0.005, k * 0.003), C.accent);
+
+  const gridTop = gy + titleH * 2.0;
+  const gridBottom = gy + gh;
+  const gridH = gridBottom - gridTop;
+  const colW = gw / 7;
+  const hair = Math.max(Math.min(area.w, area.h) * 0.0012, k * 0.0006);
+  const inset = colW * 0.08;
+  const headSize = Math.min(Math.max(colW * 0.12, area.w * 0.011), gridH * 0.05);
+  const numSize = Math.min(colW * 0.42, gridH * 0.17);
+  const evSize = Math.max(Math.min(colW * 0.08, numSize * 0.32), k * 0.004);
+
+  // Header band: day abbreviation + big number, then a strong rule.
+  const headBandH = headSize * 1.7 + numSize * 1.2;
+  rule(gx, gridTop, gw, hair * 2, C.ink);
+
+  // Writing lines — constant rhythm, span all 7 columns.
+  const linesTop = gridTop + headBandH + numSize * 0.3;
+  if (showGrid && gridBottom - linesTop > numSize) {
+    const rhythm = Math.max(numSize * 0.6, gridH * 0.045);
+    for (let y = linesTop + rhythm; y < gridBottom - rhythm * 0.3; y += rhythm) {
+      rule(gx, y, gw, hair * 0.7, C.rule);
+    }
+  }
+
+  for (let c = 0; c < 7; c++) {
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + c);
+    const isWknd = (d.getDay() === 0 || d.getDay() === 6);
+    const isToday = today && sameDay(d, today);
+    const evs = cfg.showEvents ? eventsOn(cfg, d) : [];
+    const hol = evs.some(e => e.holiday);
+    const cx = gx + c * colW;
+    const colour = (isWknd || hol) ? C.accent : C.ink;
+    text(cx + inset, gridTop + headSize * 0.5, colW - inset, headSize * 1.5,
+         S.daysShort[(d.getDay() + 6) % 7], F.medium, headSize, colour);
+    // Month tag when the week straddles two months.
+    if (d.getDate() === 1 && c > 0) {
+      text(cx + inset, gridTop + headSize * 0.5, colW - inset * 2, headSize * 1.5,
+           S.months[d.getMonth()].slice(0, 3).toUpperCase(), F.medium, headSize, C.muted, 'right');
+    }
+    text(cx + inset, gridTop + headSize * 1.9, colW - inset, numSize * 1.2, d.getDate(),
+         (isToday || hol) ? F.bold : F.regular, numSize, isToday ? C.accent : colour);
+    if (isToday) rect(cx + inset, gridTop + headSize * 1.9 + numSize * 1.12, numSize * 0.8, hair * 3, C.accent);
+    evs.slice(0, 5).forEach((e, i) => {
+      text(cx + inset, gridTop + headBandH + evSize * (0.5 + i * 1.55), colW - inset * 2, evSize * 1.4,
+           e.label, F.regular, evSize, e.holiday ? C.accent : C.muted);
+    });
+  }
+
+  // Column structure — full height, always (this is what makes it 7 columns).
+  for (let c = 1; c < 7; c++) vrule(gx + c * colW, gridTop, gridH, hair, C.rule);
+  rule(gx, gridBottom, gw, hair, C.rule);
+}
+
+// DAY — one day that fills the area. Landscape splits into date (left) +
+// agenda/notes (right); portrait stacks. When there is no agenda the empty
+// zone fills with writing lines instead of sitting blank.
+function drawDay(B, area, cfg, S) {
+  const { text, richText, rule, vrule, rect } = B;
+  const { year, month, day, showAgenda, showGrid, agendaStart, agendaEnd, agenda24h, showAccentBar, today, C, F } = cfg;
+
+  const hourLabel = (h) => {
+    if (agenda24h) return String(h).padStart(2, '0') + ':00';
+    const ap = h < 12 ? 'AM' : 'PM';
+    let hh = h % 12; if (hh === 0) hh = 12;
+    return hh + ' ' + ap;
+  };
+
+  const margin = Math.min(area.w, area.h) * 0.08;
+  const gx = area.x + margin, gy = area.y + margin;
+  const gw = area.w - margin * 2, gh = area.h - margin * 2;
+  // Scale-aware reference. Every minimum below is a fraction of this rather
+  // than an absolute number, so the geometry holds whether the viewBox is in
+  // mm (~300), px (~1080) or inches (~11).
+  const k = Math.max(area.w, area.h);
+  const hair = Math.max(Math.min(area.w, area.h) * 0.0016, k * 0.0006);
+
+  const d = new Date(year, month, day);
+  const isToday = today && sameDay(d, today);
+  const evs = cfg.showEvents ? eventsOn(cfg, d) : [];
+  const hol = evs.some(e => e.holiday);
+  const weekdayName = S.daysLong[(d.getDay() + 6) % 7];
+
+  const split = gw > gh * 1.15;              // landscape -> date column + agenda/notes column
+  const u = Math.min(split ? gw * 0.42 : gw, gh);
+
+  const wSize   = Math.min(u * 0.12, gh * 0.11);
+  const subSize = Math.min(u * 0.058, gh * 0.052);
+  const numSize = split ? Math.min(gh * 0.44, gw * 0.30) : Math.min(gw * 0.34, gh * 0.40);
+  // Date column: just wide enough for the number (two digits + a little air),
+  // not a fixed slab -- keeps the agenda from starting far to the right.
+  const dateColW = split
+    ? Math.min(Math.max(numSize * 1.25, gw * 0.26), gw * 0.44)
+    : gw;
+
+  let cy = gy;
+  text(gx, cy, dateColW, wSize * 1.4, weekdayName.toUpperCase(), F.bold, wSize, (isToday || hol) ? C.accent : C.ink);
+  if (showAccentBar) rect(gx, cy + wSize * 1.3, wSize * 1.5, Math.max(k * 0.0032, hair * 2), C.accent);
+  cy += wSize * 2.0;
+  text(gx, cy, dateColW, numSize * 1.15, String(day), F.bold, numSize, C.ink);
+  cy += numSize * 1.02;
+  richText(gx, cy, split ? dateColW * 1.4 : gw, subSize * 1.7, [
+    { text: cfg.subText || `${S.months[month]} ${year}`, face: F.bold, colour: C.ink },
+    { text: `  ·  ${S.week} ${isoWeek(d)}`, face: F.regular, colour: C.muted }
+  ], subSize);
+  cy += subSize * 1.7;
+
+  if (evs.length) {
+    evs.forEach(e => {
+      text(gx, cy, split ? dateColW * 1.4 : gw, subSize * 1.5, '— ' + e.label, F.regular, subSize * 0.92, e.holiday ? C.accent : C.ink);
+      cy += subSize * 1.5;
+    });
+    cy += subSize * 0.3;
+  }
+
+  // Fill zone: right column in a split, everything below the date otherwise.
+  const gap = split ? gw * 0.03 : subSize * 0.9;
+  const fillX = split ? gx + dateColW + gap : gx;
+  const fillW = split ? (gx + gw) - fillX : gw;
+  const fillTop = split ? gy : cy;
+  const fillBottom = gy + gh;
+  const availH = fillBottom - fillTop;
+  if (availH < subSize * 2 || fillW < subSize * 3) return;
+
+  if (showAgenda) {
+    const hours = Math.max(1, Math.round(agendaEnd - agendaStart));
+    const step = availH / hours;
+    // Label size fits its own row; gutter is sized to hold "08:00" / "12 PM"
+    // so the separator rule never cuts through it.
+    const labSize = Math.min(subSize * 0.82, step * 0.4);
+    const gutterW = Math.min(Math.max(fillW * 0.13, labSize * 3.6), fillW * 0.28);
+    for (let i = 0; i <= hours; i++) {
+      const yy = fillTop + i * step;
+      rule(fillX, yy, fillW, i === 0 ? hair * 2.2 : hair, i === 0 ? C.ink : C.rule);
+      if (i < hours) {
+        // right-aligned in the gutter, a hair clear of the separator rule
+        text(fillX, yy + step * 0.5 - labSize * 0.62, gutterW - hair * 4, labSize * 1.4,
+             hourLabel(agendaStart + i), F.regular, labSize, C.muted, 'right');
+      }
+    }
+    vrule(fillX + gutterW, fillTop, step * hours, hair, C.rule);
+  } else if (showGrid) {
+    rule(fillX, fillTop, fillW, hair * 2.2, C.ink);
+    const rhythm = Math.max(subSize * 1.7, availH * 0.06);
+    for (let y = fillTop + rhythm; y < fillBottom - rhythm * 0.3; y += rhythm) {
+      rule(fillX, y, fillW, hair * 0.8, C.rule);
+    }
+  }
+}
+
+/* -------------------------------------------------------------- */
+/*  Auto title / subtitle                                          */
+/* -------------------------------------------------------------- */
+function autoTitle(cfg, S) {
+  if (cfg.view === 0) return String(cfg.year);
+  if (cfg.view === 1) return S.months[cfg.month];
+  if (cfg.view === 2) {
+    const ref = new Date(cfg.year, cfg.month, cfg.day);
+    const refCol = columnOf(ref.getDay(), cfg.weekStartsMonday);
+    const monday = new Date(cfg.year, cfg.month, cfg.day - refCol);
+    const end = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+    return monday.getMonth() === end.getMonth()
+      ? `${S.months[monday.getMonth()]} ${monday.getFullYear()}`
+      : `${S.months[monday.getMonth()]} – ${S.months[end.getMonth()]} ${end.getFullYear()}`;
+  }
+  return S.daysLong[(new Date(cfg.year, cfg.month, cfg.day).getDay() + 6) % 7];
+}
+function autoSubtitle(cfg, S) {
+  if (cfg.view === 0) return '';
+  if (cfg.view === 1) return String(cfg.year);
+  if (cfg.view === 2) {
+    const ref = new Date(cfg.year, cfg.month, cfg.day);
+    const refCol = columnOf(ref.getDay(), cfg.weekStartsMonday);
+    const monday = new Date(cfg.year, cfg.month, cfg.day - refCol);
+    return `${S.week} ${isoWeek(monday)}`;
+  }
+  return `${S.months[cfg.month]} ${cfg.year}`;
+}
+
+/* -------------------------------------------------------------- */
+/*  Build the calendar SVG (preview + export share this)          */
+/* -------------------------------------------------------------- */
+function buildCfg() {
+  const S = L();
+  const F = {
+    regular: { weight: 400 }, medium: { weight: 500 }, bold: { weight: 700 }
+  };
+  const cfg = {
+    view: state.view, year: state.year, month: state.month,
+    day: Math.min(state.day, daysInMonth(state.year, state.month)),
+    weekStartsMonday: state.weekStartsMonday, weekNumberIso: state.weekNumberIso,
+    showHeader: state.showHeader, showAdjacent: state.showAdjacent, showGrid: state.showGrid,
+    showWeekNumbers: state.showWeekNumbers, showVerticals: state.showVerticals,
+    boldWeekend: state.boldWeekend, showAccentBar: state.showAccentBar,
+    showEvents: state.showEvents,
+    showAgenda: state.showAgenda, agendaStart: state.agendaFrom,
+    agendaEnd: state.agendaTo <= state.agendaFrom ? state.agendaFrom + 1 : state.agendaTo,
+    agenda24h: state.agenda24h,
+    today: state.markToday ? now : null,
+    country: state.country, userEvents: state.userEvents,
+    F, C: { ink: state.cInk, accent: state.cAccent, rule: state.cRule, muted: state.cMuted }
+  };
+  cfg._events = allEvents(cfg);
+  cfg.titleText = state.title.trim() || autoTitle(cfg, S);
+  cfg.subText = state.subtitle.trim() || autoSubtitle(cfg, S);
+  return cfg;
+}
+
+function buildSVG({ forExport }) {
+  const S = L();
+  const cfg = buildCfg();
+  const { docW, docH, unit } = state;
+  const F = TYPEFACES[state.typeface];
+  const area = { x: 0, y: 0, w: docW, h: docH };
+
+  const draw = [drawYear, drawMonth, drawWeek, drawDay][cfg.view];
+  const inner = makeSVGBuilder(F);
+  draw(inner, area, cfg, S);
+
+  const viewName = [S.ui.viewYear, S.ui.viewMonth, S.ui.viewWeek, S.ui.viewDay][cfg.view];
+  const head = forExport
+    ? `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" ` +
+      `xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ` +
+      `width="${docW}${unit}" height="${docH}${unit}" viewBox="0 0 ${docW} ${docH}">\n` +
+      `<title>${esc('Swiss Calendar — ' + viewName + ' ' + cfg.year)}</title>\n` +
+      `<desc>${esc('Generated by Swiss Calendar Creator ' + VERSION + ' — 3dvic.com')}</desc>\n`
+    : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${docW} ${docH}" preserveAspectRatio="xMidYMid meet">`;
+
+  let svg = head;
+  svg += `<g class="paper"${forExport ? ' inkscape:groupmode="layer" inkscape:label="Paper"' : ''}>`;
+  svg += `<rect x="0" y="0" width="${docW}" height="${docH}" fill="${state.cPaper}"/>`;
+  svg += `</g>`;
+  svg += `<g class="calendar"${forExport ? ' inkscape:groupmode="layer" inkscape:label="Calendar"' : ''}>`;
+  svg += inner.parts.join('');
+  svg += `</g>`;
+  svg += `</svg>`;
+  return svg;
+}
+
+/* -------------------------------------------------------------- */
+/*  Render + stats                                                 */
+/* -------------------------------------------------------------- */
+const $ = id => document.getElementById(id);
+
+function renderPreview() {
+  const wrap = $("preview").parentElement;
+  const maxW = wrap.clientWidth - 64, maxH = wrap.clientHeight - 64;
+  const ratio = state.docW / state.docH;
+  let w, h;
+  if (maxW / maxH > ratio) { h = maxH; w = h * ratio; } else { w = maxW; h = w / ratio; }
+  const p = $("preview");
+  p.setAttribute("width", w);
+  p.setAttribute("height", h);
+  p.setAttribute("viewBox", `0 0 ${state.docW} ${state.docH}`);
+  p.innerHTML = buildSVG({ forExport: false }).replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
+}
+
+function updateStats() {
+  const S = L();
+  const cfg = buildCfg();
+  $("st-view").textContent = [S.ui.viewYear, S.ui.viewMonth, S.ui.viewWeek, S.ui.viewDay][state.view];
+  $("st-size").textContent = `${state.docW}×${state.docH} ${state.unit}`;
+  let span;
+  if (state.view === 0) span = S.ui.spanYear;
+  else if (state.view === 1) span = S.ui.spanDays(daysInMonth(state.year, state.month));
+  else if (state.view === 2) span = S.ui.spanWeek;
+  else span = S.ui.spanDay;
+  $("st-span").textContent = span;
+
+  let evCount;
+  if (state.view === 0) evCount = cfg._events.length;
+  else if (state.view === 1) evCount = cfg._events.filter(e => e.month === state.month).length;
+  else if (state.view === 2) {
+    const ref = new Date(state.year, state.month, cfg.day);
+    const refCol = columnOf(ref.getDay(), state.weekStartsMonday);
+    const monday = new Date(state.year, state.month, cfg.day - refCol);
+    evCount = 0;
+    for (let i = 0; i < 7; i++) evCount += eventsOn(cfg, new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)).length;
+  } else {
+    evCount = eventsOn(cfg, new Date(state.year, state.month, cfg.day)).length;
+  }
+  $("st-events").textContent = state.showEvents ? String(evCount) : "off";
+
+  const alertEl = $("alert");
+  const r = state.docW / state.docH;
+  alertEl.classList.remove("canvas-top__alert--warn");
+  if (Math.abs(r - 1) < 0.06) alertEl.textContent = S.ui.alertSquare;
+  else if (r < 1) alertEl.textContent = S.ui.alertVertical;
+  else alertEl.textContent = S.ui.alertLandscape;
+  if (state.view === 0 && r > 2.4) { alertEl.textContent = S.ui.alertTight; alertEl.classList.add("canvas-top__alert--warn"); }
+}
+
+function updateHeaderInfo() {
+  let name = "";
+  for (const [k, v] of Object.entries(FORMATS)) {
+    if (Math.abs(v.w - state.docW) < 0.01 && Math.abs(v.h - state.docH) < 0.01 && v.unit === state.unit) { name = k.toUpperCase() + " · "; break; }
+  }
+  $("header-doc-info").textContent = `${name}${state.docW} × ${state.docH} ${state.unit.toUpperCase()}`;
+}
+
+function update() {
+  syncAgendaVisibility();
+  renderPreview();
+  updateStats();
+  updateHeaderInfo();
+  renderEventList();
+}
+
+function syncAgendaVisibility() {
+  $("sec-agenda").classList.toggle("field--locked", state.view !== 3);
+}
+
+/* -------------------------------------------------------------- */
+/*  Event list UI                                                  */
+/* -------------------------------------------------------------- */
+function renderEventList() {
+  const c = $("event-list");
+  const cfg = buildCfg();
+  c.innerHTML = "";
+  const items = cfg._events
+    .map((e, i) => ({ ...e, _idx: e.preset ? -1 : state.userEvents.indexOf(e) }))
+    .sort((a, b) => a.month - b.month || a.day - b.day);
+  if (!items.length) {
+    const p = document.createElement("p");
+    p.className = "event-empty";
+    p.textContent = lang === "es" ? "Sin eventos este año." : "No events this year.";
+    c.appendChild(p);
+    return;
+  }
+  const S = L();
+  items.forEach(e => {
+    const row = document.createElement("div");
+    row.className = "event-item";
+    const dot = document.createElement("span");
+    dot.className = "event-item__dot" + (e.holiday ? " event-item__dot--holiday" : "");
+    const body = document.createElement("div");
+    body.className = "event-item__body";
+    body.innerHTML = `<div class="event-item__name">${esc(e.label)}</div>` +
+      `<div class="event-item__date">${String(e.day).padStart(2,'0')} ${S.months[e.month].slice(0,3)}` +
+      `${e.preset ? ' · ' + (lang === 'es' ? 'feriado' : 'holiday') : ''}</div>`;
+    row.appendChild(dot); row.appendChild(body);
+    if (!e.preset) {
+      const del = document.createElement("button");
+      del.className = "event-item__del";
+      del.innerHTML = "&times;";
+      del.onclick = () => { state.userEvents.splice(e._idx, 1); update(); };
+      row.appendChild(del);
+    }
+    c.appendChild(row);
+  });
+}
+
+/* -------------------------------------------------------------- */
+/*  Export                                                         */
+/* -------------------------------------------------------------- */
+function exportName() {
+  const S = L();
+  const v = ['year','month','week','day'][state.view];
+  let stamp = String(state.year);
+  if (state.view === 1) stamp += '-' + String(state.month + 1).padStart(2, '0');
+  if (state.view >= 2) stamp += '-' + String(state.month + 1).padStart(2, '0') + '-' + String(state.day).padStart(2, '0');
+  return `swiss-calendar_${v}_${stamp}.svg`;
+}
+function downloadSVG() {
+  const blob = new Blob([buildSVG({ forExport: true })], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = exportName();
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(t("toastDownload"));
+}
+function copySVG() {
+  navigator.clipboard.writeText(buildSVG({ forExport: true })).then(() => toast(t("toastCopied")));
+}
+// PNG — rasterise the export SVG through a canvas. No dependencies: an SVG
+// referencing fonts by name (not @font-face url) never taints the canvas.
+function downloadPNG() {
+  const { docW, docH, unit } = state;
+  const pxPerUnit = unit === "px" ? 2 : (TO_PT[unit] / 72) * 150;   // 150 dpi for physical units
+  let W = Math.max(1, Math.round(docW * pxPerUnit));
+  let H = Math.max(1, Math.round(docH * pxPerUnit));
+  const longest = Math.max(W, H);
+  if (longest > 4000) { const k = 4000 / longest; W = Math.round(W * k); H = Math.round(H * k); }
+
+  const svg = buildSVG({ forExport: true })
+    .replace(`width="${docW}${unit}" height="${docH}${unit}"`, `width="${W}" height="${H}"`);
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+  const img = new Image();
+  img.onload = () => {
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = state.cPaper; ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(img, 0, 0, W, H);
+    URL.revokeObjectURL(url);
+    cv.toBlob(blob => {
+      if (!blob) { toast(t("toastPngError"), true); return; }
+      const dl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = dl; a.download = exportName().replace(/\.svg$/, ".png");
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(dl);
+      toast(t("toastPngDownload"));
+    }, "image/png");
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast(t("toastPngError"), true); };
+  img.src = url;
+}
+function exportJSON() {
+  const blob = new Blob([JSON.stringify({ ...state, version: VERSION }, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "swiss-calendar-settings.json";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(t("toastExport"));
+}
+function importJSON(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      if (typeof d.docW !== "number" || typeof d.view !== "number") throw new Error("bad");
+      Object.keys(state).forEach(k => { if (k in d) state[k] = d[k]; });
+      if (!Array.isArray(state.userEvents)) state.userEvents = [];
+      syncControlsFromState();
+      update();
+      toast(t("toastImport"));
+    } catch (err) { toast(t("toastImportError"), true); }
+  };
+  reader.readAsText(file);
+}
+
+/* -------------------------------------------------------------- */
+/*  Controls binding                                               */
+/* -------------------------------------------------------------- */
+function fillMonths() {
+  const sel = $("month");
+  sel.innerHTML = "";
+  L().months.forEach((m, i) => {
+    const o = document.createElement("option");
+    o.value = i; o.textContent = m;
+    sel.appendChild(o);
+  });
+  sel.value = state.month;
+}
+
+function syncControlsFromState() {
+  $("doc-w").value = state.docW; $("doc-h").value = state.docH; $("unit").value = state.unit;
+  $("year").value = state.year; $("day").value = state.day; $("day-slider").value = state.day;
+  $("day-slider").max = daysInMonth(state.year, state.month);
+  fillMonths();
+  $("title").value = state.title; $("subtitle").value = state.subtitle;
+  $("ag-from").value = state.agendaFrom; $("ag-to").value = state.agendaTo;
+  $("typeface").value = state.typeface;
+  $("country").value = state.country;
+  segSet("seg-view", "view", state.view);
+  segSet("seg-weekstart", "ws", state.weekStartsMonday ? 1 : 0);
+  segSet("seg-weeknum", "wn", state.weekNumberIso ? 1 : 0);
+  segSet("seg-timefmt", "tf", state.agenda24h ? 1 : 0);
+  [["c-header","showHeader"],["c-adjacent","showAdjacent"],["c-grid","showGrid"],["c-weeknums","showWeekNumbers"],
+   ["c-verticals","showVerticals"],["c-boldwknd","boldWeekend"],["c-accentbar","showAccentBar"],["c-today","markToday"],
+   ["c-events","showEvents"],["c-agenda","showAgenda"]].forEach(([id, k]) => { $(id).checked = state[k]; });
+  [["ink","cInk"],["accent","cAccent"],["rule","cRule"],["muted","cMuted"],["paper","cPaper"]].forEach(([id, k]) => {
+    $("col-" + id).value = state[k]; $("col-" + id + "-hex").value = state[k].toUpperCase();
+  });
+}
+
+function segSet(segId, attr, val) {
+  $(segId).querySelectorAll(".segment__btn").forEach(b => {
+    b.classList.toggle("active", b.dataset[attr] === String(val));
+  });
+}
+function bindSegment(segId, attr, fn) {
+  $(segId).querySelectorAll(".segment__btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      segSet(segId, attr, btn.dataset[attr]);
+      fn(parseInt(btn.dataset[attr], 10));
+    });
+  });
+}
+
+function setFormatCustom() { $("format").value = "custom"; }
+
+function bindControls() {
+  $("format").addEventListener("change", () => {
+    const f = $("format").value;
+    if (f === "custom") return;
+    const fmt = FORMATS[f];
+    state.docW = fmt.w; state.docH = fmt.h; state.unit = fmt.unit;
+    $("doc-w").value = fmt.w; $("doc-h").value = fmt.h; $("unit").value = fmt.unit;
+    update();
+  });
+  $("doc-w").addEventListener("change", () => { const v = parseFloat($("doc-w").value); if (v > 0) { state.docW = v; setFormatCustom(); update(); } });
+  $("doc-h").addEventListener("change", () => { const v = parseFloat($("doc-h").value); if (v > 0) { state.docH = v; setFormatCustom(); update(); } });
+  $("btn-swap").addEventListener("click", () => { [state.docW, state.docH] = [state.docH, state.docW]; $("doc-w").value = state.docW; $("doc-h").value = state.docH; setFormatCustom(); update(); });
+  $("unit").addEventListener("change", () => {
+    const nu = $("unit").value, ou = state.unit;
+    if (nu !== ou) {
+      const cv = v => fromPt(toPt(v, ou), nu);
+      const rd = v => nu === "px" ? Math.round(v) : Math.round(v * 100) / 100;
+      state.docW = rd(cv(state.docW)); state.docH = rd(cv(state.docH));
+      $("doc-w").value = state.docW; $("doc-h").value = state.docH;
+      setFormatCustom();
+    }
+    state.unit = nu; update();
+  });
+
+  bindSegment("seg-view", "view", v => {
+    state.view = v;
+    if (v === 3) $("sec-agenda").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    update();
+  });
+  $("year").addEventListener("change", () => { state.year = clamp(Math.round(+$("year").value || now.getFullYear()), 1900, 2200); $("year").value = state.year; $("day-slider").max = daysInMonth(state.year, state.month); update(); });
+  $("month").addEventListener("change", () => { state.month = +$("month").value; $("day-slider").max = daysInMonth(state.year, state.month); update(); });
+  const setDay = v => { state.day = clamp(Math.round(v), 1, 31); $("day").value = state.day; $("day-slider").value = Math.min(state.day, +$("day-slider").max); update(); };
+  $("day").addEventListener("change", () => setDay(+$("day").value));
+  $("day-slider").addEventListener("input", () => setDay(+$("day-slider").value));
+  bindSegment("seg-weekstart", "ws", v => { state.weekStartsMonday = v === 1; update(); });
+  bindSegment("seg-weeknum", "wn", v => { state.weekNumberIso = v === 1; update(); });
+
+  $("title").addEventListener("input", () => { state.title = $("title").value; update(); });
+  $("subtitle").addEventListener("input", () => { state.subtitle = $("subtitle").value; update(); });
+
+  [["c-header","showHeader"],["c-adjacent","showAdjacent"],["c-grid","showGrid"],["c-weeknums","showWeekNumbers"],
+   ["c-verticals","showVerticals"],["c-boldwknd","boldWeekend"],["c-accentbar","showAccentBar"],["c-today","markToday"],
+   ["c-events","showEvents"],["c-agenda","showAgenda"]].forEach(([id, k]) => {
+    $(id).addEventListener("change", () => { state[k] = $(id).checked; update(); });
+  });
+
+  $("ag-from").addEventListener("change", () => { state.agendaFrom = clamp(Math.round(+$("ag-from").value || 0), 0, 23); $("ag-from").value = state.agendaFrom; update(); });
+  $("ag-to").addEventListener("change", () => { state.agendaTo = clamp(Math.round(+$("ag-to").value || 24), 1, 24); $("ag-to").value = state.agendaTo; update(); });
+  bindSegment("seg-timefmt", "tf", v => { state.agenda24h = v === 1; update(); });
+
+  $("typeface").addEventListener("change", () => { state.typeface = $("typeface").value; update(); });
+  [["ink","cInk"],["accent","cAccent"],["rule","cRule"],["muted","cMuted"],["paper","cPaper"]].forEach(([id, k]) => {
+    const sw = $("col-" + id), hx = $("col-" + id + "-hex");
+    sw.addEventListener("input", () => { state[k] = sw.value; hx.value = sw.value.toUpperCase(); update(); });
+    hx.addEventListener("change", () => {
+      let v = hx.value.trim();
+      if (!/^#/.test(v)) v = "#" + v;
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) { state[k] = v; sw.value = v; update(); }
+      hx.value = state[k].toUpperCase();
+    });
+  });
+
+  $("country").addEventListener("change", () => { state.country = $("country").value; update(); });
+  $("btn-add-event").addEventListener("click", addEvent);
+  $("ev-label").addEventListener("keydown", e => { if (e.key === "Enter") addEvent(); });
+
+  $("btn-copy").addEventListener("click", copySVG);
+  $("btn-png").addEventListener("click", downloadPNG);
+  $("btn-download").addEventListener("click", downloadSVG);
+  $("btn-export").addEventListener("click", exportJSON);
+
+  // PNG info popover
+  const infoDot = $("btn-png-info"), infoPop = $("png-info-pop");
+  infoDot.addEventListener("click", e => {
+    e.stopPropagation();
+    const open = infoPop.classList.toggle("show");
+    infoDot.classList.toggle("active", open);
+  });
+  document.addEventListener("click", () => { infoPop.classList.remove("show"); infoDot.classList.remove("active"); });
+  infoPop.addEventListener("click", e => e.stopPropagation());
+  $("btn-import").addEventListener("click", () => $("file-input").click());
+  $("file-input").addEventListener("change", e => { if (e.target.files[0]) importJSON(e.target.files[0]); });
+
+  $("lang-es").addEventListener("click", () => setLang("es"));
+  $("lang-en").addEventListener("click", () => setLang("en"));
+  $("btn-about").addEventListener("click", showAbout);
+  $("modal-close").addEventListener("click", () => $("modal").classList.remove("show"));
+  $("modal").addEventListener("click", e => { if (e.target.id === "modal") $("modal").classList.remove("show"); });
+
+  window.addEventListener("keydown", e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); downloadSVG(); }
+    if (e.key === "Escape") {
+      $("modal").classList.remove("show");
+      $("png-info-pop").classList.remove("show");
+      $("btn-png-info").classList.remove("active");
+    }
+  });
+  let rt;
+  window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(renderPreview, 80); });
+}
+
+function addEvent() {
+  const dv = $("ev-date").value, lb = $("ev-label").value.trim();
+  if (!dv || !lb) { toast(t("toastEventNeeds"), true); return; }
+  const [y, m, d] = dv.split("-").map(Number);
+  state.userEvents.push({ month: m - 1, day: d, label: lb, holiday: $("ev-holiday").checked });
+  $("ev-label").value = ""; $("ev-holiday").checked = false;
+  if (y !== state.year) { state.year = clamp(y, 1900, 2200); $("year").value = state.year; }
+  update();
+  toast(t("toastEventAdded"));
+}
+
+/* -------------------------------------------------------------- */
+/*  Language / modal / toast                                       */
+/* -------------------------------------------------------------- */
+function setLang(l) {
+  lang = l;
+  $("lang-es").classList.toggle("active", l === "es");
+  $("lang-en").classList.toggle("active", l === "en");
+  document.documentElement.lang = l;
+  document.querySelectorAll("[data-i18n]").forEach(el => { el.textContent = t(el.getAttribute("data-i18n")); });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el => { el.placeholder = t(el.getAttribute("data-i18n-placeholder")); });
+  $("png-info-pop").textContent = t("pngInfo");
+  fillMonths();
+  update();
+}
+
+function showAbout() {
+  $("modal-title").textContent = t("aboutTitle");
+  const body = t("aboutBody")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace("3dvic.com", '<a href="https://3dvic.com" target="_blank" rel="noopener" style="color:var(--accent);border-bottom:1px solid var(--accent)">3dvic.com</a>')
+    .replace(/\n/g, "<br>");
+  $("modal-body").innerHTML = body;
+  $("modal").classList.add("show");
+}
+
+let toastTimer;
+function toast(msg, isError = false) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.toggle("toast--error", isError);
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2400);
+}
+
+/* -------------------------------------------------------------- */
+/*  Init                                                           */
+/* -------------------------------------------------------------- */
+function init() {
+  fillMonths();
+  syncControlsFromState();
+  bindControls();
+  setLang("es");
+}
+document.addEventListener("DOMContentLoaded", init);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,7 @@
+.DS_Store
+**/.DS_Store
+.claude/
+
+# internal working notes — not part of the published repo
+affinity-script/README.md
+affinity-script/SCRIPT-MANAGER-POST.md
