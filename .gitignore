@@ -5,3 +5,6 @@
 # internal working notes — not part of the published repo
 affinity-script/README.md
 affinity-script/SCRIPT-MANAGER-POST.md
+
+# Claude Code working context — local only
+CLAUDE.md

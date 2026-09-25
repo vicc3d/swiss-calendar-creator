@@ -17,7 +17,7 @@ Third tool in the *Swiss ___* family, alongside [Swiss Grid Explorer](https://gi
 | Web | `web-app/index.html` | Any browser — no install, no build |
 | Affinity | `affinity-script/swiss_calendar_creator.js` | Affinity (April 2026+) with MCP |
 
-**Current versions:** Web app `v1.0` · Affinity script `v1.0`
+**Current versions:** Web app `v1.1` · Affinity script `v1.3.0`
 
 ---
 
@@ -25,7 +25,7 @@ Third tool in the *Swiss ___* family, alongside [Swiss Grid Explorer](https://gi
 
 | View | What it draws |
 |---|---|
-| **Year** | 12 mini-months in a 4 × 3 grid |
+| **Year** | 12 mini-months in a columns × rows grid you choose — 4 × 3, 3 × 4, 6 × 2, 2 × 6, or long 12 × 1 / 1 × 12 strips — or automatic, picked from the page proportion |
 | **Month** | The month grid, optional week-number column (ISO 8601 or "from 1"), dimmed adjacent-month days |
 | **Week** | 7 columns with the date range and week number |
 | **Day** | A single day with hour slots; the layout adapts to the canvas proportion — landscape puts the date on the left and the hours on the right, portrait stacks everything |
@@ -39,6 +39,7 @@ Open `web-app/index.html` in any browser. No dependencies, no build step, no ser
 - Live SVG preview
 - 11 document formats (A2–A5, US Letter/Tabloid, poster, square, 16:9, 9:16, screen) + custom size, 5 units
 - Editable title / subtitle (auto-generated when left empty)
+- Year view grid selector: automatic, 4 × 3, 3 × 4, 6 × 2, 2 × 6, 12 × 1, 1 × 12
 - Week starts Monday or Sunday · ISO 8601 or "from 1" week numbering
 - Toggle: weekday header, grid rules, vertical lines, adjacent months, week numbers, bold weekends, accent bar, "mark today"
 - Day-view agenda: hour range, 12 h / 24 h labels
@@ -61,7 +62,14 @@ No PDF — deliberately, to keep the same zero-dependency footprint as *Swiss Gr
 
 **Use:** select an **artboard** (the calendar fills it) or a **rectangle / frame inside one** (the calendar fills that box), then run the script. Pick the language, then the view and settings. The result lands in one container layer named e.g. `Calendar · Month 2026 · September`.
 
-The dialog has two columns of collapsible sections: view + date + agenda on the left, elements + style on the right. Every control has a tooltip on its label.
+The dialog has two columns of collapsible sections: view + date + sequence + agenda on the left, elements + style on the right. Every control has a tooltip on its label.
+
+**What it can do (v1.3.0)**
+- **Year grid** — *Columns × rows (Year)*: automatic (3 × 4 on a portrait page, 4 × 3 on a landscape one) or an exact 4 × 3 / 3 × 4 / 6 × 2 / 2 × 6 / 12 × 1 / 1 × 12. Only exact grids are offered, so no cell is left empty; wide cells put the month name beside the grid.
+- **Artboard sequence** — *One period per artboard*: fill a whole set of artboards in one pass with consecutive years / months / weeks / days (12 pages = a full year of months), ordered by name, rows or columns. Artboards that already hold a calendar are skipped, so you can generate January, review it, and run again to continue.
+- **Optional title** — hide the view title and its accent bar; the rest of the calendar takes the space back.
+- **Type sizes in points** — set the size of day numbers, weekday headers, week numbers and agenda hours, or leave any at `0` to keep them automatic and adaptive to the area.
+- **Settings remembered per document** — your choices are stored *in the document* as an empty layer named `SCC-PRESET:{…}` at the spread root (so they travel with the file). Delete that layer if you don't want it.
 
 ---
 
@@ -69,7 +77,7 @@ The dialog has two columns of collapsible sections: view + date + agenda on the 
 
 The four view functions — `drawYear`, `drawMonth`, `drawWeek`, `drawDay` — take an area `{x, y, w, h}` and a config object, and every mark is one of five primitives: `rect`, `rule`, `vrule`, `text`, `richText`. The date math (`daysInMonth`, `columnOf`, `isoWeek`, `sameDay`) and the ISO / "from 1" week numbering are identical on both platforms.
 
-Porting to the web meant reimplementing the five primitives over `<rect>` / `<text>` instead of Affinity nodes. The Year and Month layouts are unchanged. Week and Day were reworked to **fill the canvas at any proportion** — on the web the user only controls the sheet, not a selection box, so the week becomes 7 full-height columns and the day fills its empty zone with writing lines instead of leaving it blank.
+Porting to the web meant reimplementing the five primitives over `<rect>` / `<text>` instead of Affinity nodes. Year and Month share the same layouts (both have the columns × rows selector; on the web *automatic* also adapts to very wide and very tall sheets). Week and Day were reworked to **fill the canvas at any proportion** — on the web the user only controls the sheet, not a selection box, so the week becomes 7 full-height columns and the day fills its empty zone with writing lines instead of leaving it blank.
 
 ---
 
@@ -93,9 +101,9 @@ swiss-calendar-creator/
 ├── README.md
 ├── LICENSE
 ├── web-app/
-│   └── index.html                 ← Web app (v1.0)
+│   └── index.html                 ← Web app (v1.1)
 └── affinity-script/
-    └── swiss_calendar_creator.js  ← Affinity script (v1.0)
+    └── swiss_calendar_creator.js  ← Affinity script (v1.3.0)
 ```
 
 ---

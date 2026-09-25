@@ -589,6 +589,18 @@
             <button class="segment__btn" data-view="3" data-i18n="viewDay">Día</button>
           </div>
         </div>
+        <div class="field" id="field-yeargrid">
+          <span class="field__label" data-i18n="yearGrid">Columnas × filas (Año)</span>
+          <select class="select" id="year-grid">
+            <option value="auto" data-i18n="yearGridAuto">Automática</option>
+            <option value="4x3">4 × 3</option>
+            <option value="3x4">3 × 4</option>
+            <option value="6x2">6 × 2</option>
+            <option value="2x6">2 × 6</option>
+            <option value="12x1">12 × 1</option>
+            <option value="1x12">1 × 12</option>
+          </select>
+        </div>
         <div class="field">
           <div class="field__row">
             <span class="field__label" data-i18n="year">Año</span>
@@ -850,7 +862,7 @@
    richText). Here the builder writes SVG instead of Affinity nodes.
    ============================================================== */
 "use strict";
-const VERSION = "v1.0";
+const VERSION = "v1.1";
 
 /* -------------------------------------------------------------- */
 /*  Strings — calendar content + UI, ES / EN                      */
@@ -868,6 +880,7 @@ const STR = {
       calendar:'Calendario', view:'Vista', viewYear:'Año', viewMonth:'Mes', viewWeek:'Semana', viewDay:'Día',
       year:'Año', month:'Mes', day:'Día', weekStart:'La semana empieza en', monday:'Lunes', sunday:'Domingo',
       weekNum:'Numeración de semanas', iso:'ISO 8601', from1:'Desde 1',
+      yearGrid:'Columnas × filas (Año)', yearGridAuto:'Automática',
       content:'Contenido', title:'Título', subtitle:'Subtítulo', autoPlaceholder:'Automático',
       contentHint:'Dejalos vacíos para que se generen solos según la vista y la fecha.',
       elements:'Elementos', elHeader:'Encabezado de días', elAdjacent:'Meses contiguos',
@@ -910,6 +923,7 @@ const STR = {
       calendar:'Calendar', view:'View', viewYear:'Year', viewMonth:'Month', viewWeek:'Week', viewDay:'Day',
       year:'Year', month:'Month', day:'Day', weekStart:'Week starts on', monday:'Monday', sunday:'Sunday',
       weekNum:'Week numbering', iso:'ISO 8601', from1:'From 1',
+      yearGrid:'Columns × rows (Year)', yearGridAuto:'Automatic',
       content:'Content', title:'Title', subtitle:'Subtitle', autoPlaceholder:'Automatic',
       contentHint:'Leave empty to auto-generate them from the view and date.',
       elements:'Elements', elHeader:'Weekday header', elAdjacent:'Adjacent months',
@@ -1139,6 +1153,7 @@ const state = {
   showVerticals: false, boldWeekend: false, showAccentBar: true, markToday: true, showEvents: true,
   showAgenda: true, agendaFrom: 8, agendaTo: 20, agenda24h: true,
   typeface: 'helvetica',
+  yearGrid: 'auto',   // 'auto' | '4x3' | '3x4' | '6x2' | '2x6' | '12x1' | '1x12'
   cInk: '#111111', cAccent: '#E30613', cRule: '#969696', cMuted: '#B0B0B0', cPaper: '#FFFFFF',
   country: 'none',
   userEvents: []   // { month, day, label, holiday }
@@ -1329,6 +1344,10 @@ function drawMonth(B, area, cfg, S) {
   }
 }
 
+// Exact 12-month grids the user can pick (columns x rows). Only exact grids
+// are offered so no cell is ever left empty. 'auto' adapts to the proportion.
+const YEAR_GRIDS = { '4x3': [4, 3], '3x4': [3, 4], '6x2': [6, 2], '2x6': [2, 6], '12x1': [12, 1], '1x12': [1, 12] };
+
 function drawYear(B, area, cfg, S) {
   const { text, rect } = B;
   const { year, weekStartsMonday, showHeader, boldWeekend, showAccentBar, today, C, F } = cfg;
@@ -1338,11 +1357,12 @@ function drawYear(B, area, cfg, S) {
   const gw = area.w - margin * 2, gh = area.h - margin * 2;
   const k = Math.max(area.w, area.h);   // scale reference (mm ~300, px ~1080, in ~11)
 
-  // Month grid adapts to the canvas proportion so the 12 mini-months keep a
-  // usable aspect ratio instead of being crushed on wide / tall sheets.
+  // The user's pick, or a grid adapted to the canvas proportion so the 12
+  // mini-months keep a usable aspect ratio on wide / tall sheets.
   const ratio = gw / gh;
   let cols, rows;
-  if (ratio >= 1.5) { cols = 6; rows = 2; }
+  if (YEAR_GRIDS[cfg.yearGrid]) [cols, rows] = YEAR_GRIDS[cfg.yearGrid];
+  else if (ratio >= 1.5) { cols = 6; rows = 2; }
   else if (ratio <= 0.62) { cols = 2; rows = 6; }
   else if (ratio <= 0.9) { cols = 3; rows = 4; }
   else { cols = 4; rows = 3; }
@@ -1353,31 +1373,47 @@ function drawYear(B, area, cfg, S) {
   if (cfg.subText) text(gx, gy, gw, titleH * 1.4, cfg.subText, F.regular, titleSize, C.muted, 'right');
   if (showAccentBar) rect(gx, gy + titleH * 1.05, titleSize * 1.4, Math.max(area.w * 0.004, k * 0.003), C.accent);
 
-  const gutterX = gw * (cols > 4 ? 0.02 : 0.035);
-  const gutterY = gh * (rows > 3 ? 0.03 : 0.05);
+  // Gutters: as before, but the total is capped at the 4 x 3 grid's share so
+  // 12 columns / 12 rows don't lose a third of the area to gutters.
+  const gutterX = cols > 1 ? Math.min(gw * (cols > 4 ? 0.02 : 0.035), gw * 0.105 / (cols - 1)) : 0;
+  const gutterY = rows > 1 ? Math.min(gh * (rows > 3 ? 0.03 : 0.05), gh * 0.10 / (rows - 1)) : 0;
   const areaTop = gy + titleH * 1.9;
   const cellW = (gw - gutterX * (cols - 1)) / cols;
   const cellH = (gh - (areaTop - gy) - gutterY * (rows - 1)) / rows;
 
-  // Sizes clamped against BOTH the cell width and the row height — the row
-  // height is the tight constraint on wide sheets, the width on tall ones.
-  const mTitleSize = Math.min(cellW * 0.11, cellH * 0.13);
-  const innerTop = mTitleSize * 1.9;
-  const rowH = (cellH - innerTop) / 7;               // 6 week rows + 1 header row
-  const colW = cellW / 7;
-  const numSize = Math.min(cellW * 0.082, rowH * 0.66);
-  const headSize = Math.min(cellW * 0.07, rowH * 0.58);
+  // A mini-month is 7 day columns by up to 7 rows. In a cell far from that
+  // shape (12 x 1, 1 x 12) stretching it to fill the cell spreads the days
+  // apart and starves the type, so:
+  //  - in a wide cell the month name moves to the LEFT of the grid, where
+  //    there is width to spare, instead of taking height from it;
+  //  - the grid keeps a sane column/row proportion, flush top-left in its cell.
+  // In near-square or moderately stretched cells (4x3, 3x4, 6x2, 2x6) neither
+  // cap binds and the layout fills the cell exactly as before.
+  const sideTitle = cellW > cellH * 2;
+  const mTitleSize = sideTitle
+    ? Math.min(cellH * 0.16, cellW * 0.05)
+    : Math.min(cellW * 0.11, cellH * 0.13);
+  const titleColW = sideTitle ? mTitleSize * 7.5 : 0;     // fits "SEPTIEMBRE"
+  const titleRowH = sideTitle ? 0 : mTitleSize * 1.9;
+  const rawColW = (cellW - titleColW) / 7;
+  const rawRowH = (cellH - titleRowH) / 7;                // 6 week rows + 1 header row
+  const colW = Math.min(rawColW, rawRowH * 2.7);
+  const rowH = Math.min(rawRowH, colW * 1.4);
+  // Sizes clamped against BOTH the column width and the row height.
+  const numSize = Math.min(colW * 0.58, rowH * 0.66);
+  const headSize = Math.min(colW * 0.5, rowH * 0.58);
 
   for (let m = 0; m < 12; m++) {
     const cx = gx + (m % cols) * (cellW + gutterX);
     const cy = areaTop + Math.floor(m / cols) * (cellH + gutterY);
-    text(cx, cy, cellW, mTitleSize * 1.4, S.months[m].toUpperCase(), F.bold, mTitleSize, C.ink);
+    text(cx, cy, sideTitle ? titleColW : cellW, mTitleSize * 1.4, S.months[m].toUpperCase(), F.bold, mTitleSize, C.ink);
 
-    const gridTop = cy + innerTop;
+    const gridX = cx + titleColW;
+    const gridTop = cy + titleRowH;
 
     if (showHeader) for (let c = 0; c < 7; c++) {
       const isWknd = weekStartsMonday ? (c >= 5) : (c === 0 || c === 6);
-      text(cx + c * colW, gridTop, colW, rowH, S.daysMini[weekStartsMonday ? c : (c + 6) % 7],
+      text(gridX + c * colW, gridTop, colW, rowH, S.daysMini[weekStartsMonday ? c : (c + 6) % 7],
            F.medium, headSize, isWknd ? C.accent : C.muted, 'center');
     }
     const bodyTop = gridTop + (showHeader ? rowH : 0);
@@ -1394,7 +1430,7 @@ function drawYear(B, area, cfg, S) {
       let colour = (isWknd || hol) ? C.accent : C.ink;
       let face = (isWknd && boldWeekend) || hol ? F.bold : F.regular;
       if (isToday) { colour = C.accent; face = F.bold; }
-      text(cx + col * colW, bodyTop + row * rowH, colW, rowH, day, face, numSize, colour, 'center');
+      text(gridX + col * colW, bodyTop + row * rowH, colW, rowH, day, face, numSize, colour, 'center');
     }
   }
 }
@@ -1615,6 +1651,7 @@ function buildCfg() {
     showWeekNumbers: state.showWeekNumbers, showVerticals: state.showVerticals,
     boldWeekend: state.boldWeekend, showAccentBar: state.showAccentBar,
     showEvents: state.showEvents,
+    yearGrid: state.yearGrid,
     showAgenda: state.showAgenda, agendaStart: state.agendaFrom,
     agendaEnd: state.agendaTo <= state.agendaFrom ? state.agendaFrom + 1 : state.agendaTo,
     agenda24h: state.agenda24h,
@@ -1730,6 +1767,7 @@ function update() {
 
 function syncAgendaVisibility() {
   $("sec-agenda").classList.toggle("field--locked", state.view !== 3);
+  $("field-yeargrid").classList.toggle("field--locked", state.view !== 0);   // grid choice only applies to Year
 }
 
 /* -------------------------------------------------------------- */
@@ -1876,6 +1914,7 @@ function syncControlsFromState() {
   $("title").value = state.title; $("subtitle").value = state.subtitle;
   $("ag-from").value = state.agendaFrom; $("ag-to").value = state.agendaTo;
   $("typeface").value = state.typeface;
+  $("year-grid").value = state.yearGrid;
   $("country").value = state.country;
   segSet("seg-view", "view", state.view);
   segSet("seg-weekstart", "ws", state.weekStartsMonday ? 1 : 0);
@@ -1956,6 +1995,7 @@ function bindControls() {
   bindSegment("seg-timefmt", "tf", v => { state.agenda24h = v === 1; update(); });
 
   $("typeface").addEventListener("change", () => { state.typeface = $("typeface").value; update(); });
+  $("year-grid").addEventListener("change", () => { state.yearGrid = $("year-grid").value; update(); });
   [["ink","cInk"],["accent","cAccent"],["rule","cRule"],["muted","cMuted"],["paper","cPaper"]].forEach(([id, k]) => {
     const sw = $("col-" + id), hx = $("col-" + id + "-hex");
     sw.addEventListener("input", () => { state[k] = sw.value; hx.value = sw.value.toUpperCase(); update(); });
