@@ -793,7 +793,7 @@
             <option value="US" data-i18n="countryUS">Estados Unidos</option>
           </select>
         </div>
-        <p class="hint" data-i18n="countryHint">Feriados nacionales aproximados. Podés borrar los que no apliquen y sumar los tuyos.</p>
+        <p class="hint" data-i18n="countryHint">Feriados nacionales aproximados. Puedes borrar los que no apliquen y sumar los tuyos.</p>
 
         <div class="events-divider" data-i18n="addEvent">Agregar</div>
         <div class="event-add">
@@ -901,20 +901,20 @@ const STR = {
       events:'Eventos y feriados', country:'Feriados de', countryNone:'Ninguno',
       countryUY:'Uruguay', countryAR:'Argentina', countryCL:'Chile', countryCO:'Colombia',
       countryMX:'México', countryPE:'Perú', countryES:'España', countryUS:'Estados Unidos',
-      countryHint:'Feriados nacionales aproximados. Podés borrar los que no apliquen y sumar los tuyos.',
+      countryHint:'Feriados nacionales aproximados. Puedes borrar los que no apliquen y sumar los tuyos.',
       addEvent:'Agregar', evLabelPh:'Nota o evento', evAsHoliday:'Resaltar como feriado', add:'Añadir',
       eventList:'En este año', settings:'Ajustes', importJson:'Importar JSON', exportJson:'Exportar JSON',
       copySvg:'Copiar SVG', downloadPng:'Descargar PNG', downloadSvg:'Descargar SVG',
-      pngInfo:'El PNG se genera rasterizando el SVG con las tipografías disponibles en tu navegador. El stack Helvetica / Arial y las fuentes que carga la app (Inter, Archivo) se ven bien; una tipografía instalada solo en tu sistema puede no coincidir en el PNG.\n\nResolución: 2× en formatos px, 150 ppp en formatos físicos (tope 4000 px). Para conservar el texto vectorial y las capas, exportá el SVG.',
+      pngInfo:'El PNG se genera rasterizando el SVG con las tipografías disponibles en tu navegador. El stack Helvetica / Arial y las fuentes que carga la app (Inter, Archivo) se ven bien; una tipografía instalada solo en tu sistema puede no coincidir en el PNG.\n\nResolución: 2× en formatos px, 150 ppp en formatos físicos (tope 4000 px). Para conservar el texto vectorial y las capas, exporta el SVG.',
       spanYear:'año completo', spanDays:d=>`${d} días`, spanWeek:'una semana', spanDay:'un día',
       alertVertical:'Proporción vertical', alertLandscape:'Proporción apaisada', alertSquare:'Proporción cuadrada',
       alertTight:'Área muy estrecha para esta vista',
       toastCopied:'SVG copiado al portapapeles', toastDownload:'SVG descargado',
       toastPngDownload:'PNG descargado', toastPngError:'No se pudo generar el PNG',
       toastImport:'Ajustes importados', toastImportError:'No se pudo leer el JSON', toastExport:'Ajustes exportados',
-      toastEventNeeds:'Poné fecha y texto para el evento', toastEventAdded:'Evento añadido',
+      toastEventNeeds:'Pon fecha y texto para el evento', toastEventAdded:'Evento añadido',
       aboutTitle:'Acerca de Swiss Calendar Creator',
-      aboutBody:`Swiss Calendar Creator ${VERSION}\n\nGenera calendarios de estética International Typographic Style (diseño suizo): retícula estricta, palo seco alineado a la izquierda, filetes finos, mucho blanco y una única tinta de acento.\n\nCuatro vistas — Año, Mes, Semana y Día — en español o inglés, con feriados por país y notas propias. Exporta un SVG con grupos nombrados que Illustrator, Affinity e Inkscape reconocen como capas, o un PNG para compartir.\n\nEs la contraparte web del script para Affinity (by Canva). Comparte el motor y la lógica de fechas; las vistas Semana y Día se rehicieron para llenar el lienzo, porque en la web controlás la hoja y no una selección.\n\nLos feriados incluidos son nacionales y aproximados: revisalos siempre contra la normativa vigente.\n\n3dvic.com · MIT License`
+      aboutBody:`Swiss Calendar Creator ${VERSION}\n\nGenera calendarios de estética International Typographic Style (diseño suizo): retícula estricta, palo seco alineado a la izquierda, filetes finos, mucho blanco y una única tinta de acento.\n\nCuatro vistas (Año, Mes, Semana y Día) en español o inglés, con feriados por país y notas propias. Exporta un SVG con grupos nombrados que Illustrator, Affinity e Inkscape reconocen como capas, o un PNG para compartir.\n\nEs la contraparte web del script para Affinity (by Canva). Comparte el motor y la lógica de fechas; las vistas Semana y Día se rehicieron para llenar el lienzo, porque en la web se controla la hoja y no una selección.\n\nLos feriados incluidos son nacionales y aproximados: revísalos siempre contra la normativa vigente.\n\n3dvic.com · MIT License`
     }
   },
   en: {
@@ -957,7 +957,7 @@ const STR = {
       toastImport:'Settings imported', toastImportError:'Could not read the JSON', toastExport:'Settings exported',
       toastEventNeeds:'Set a date and a label for the event', toastEventAdded:'Event added',
       aboutTitle:'About Swiss Calendar Creator',
-      aboutBody:`Swiss Calendar Creator ${VERSION}\n\nGenerates calendars in the International Typographic Style: strict grid, flush-left sans-serif, hairline rules, generous white space and a single accent ink.\n\nFour views — Year, Month, Week and Day — in English or Spanish, with per-country holidays and your own notes. Exports an SVG with named groups that Illustrator, Affinity and Inkscape read as layers, or a PNG to share.\n\nIt is the web counterpart of the Affinity (by Canva) script. It shares the engine and the date logic; the Week and Day views were reworked to fill the canvas, since on the web you control the sheet rather than a selection.\n\nBundled holidays are national and approximate: always check them against current legislation.\n\n3dvic.com · MIT License`
+      aboutBody:`Swiss Calendar Creator ${VERSION}\n\nGenerates calendars in the International Typographic Style: strict grid, flush-left sans-serif, hairline rules, generous white space and a single accent ink.\n\nFour views (Year, Month, Week and Day) in English or Spanish, with per-country holidays and your own notes. Exports an SVG with named groups that Illustrator, Affinity and Inkscape read as layers, or a PNG to share.\n\nIt is the web counterpart of the Affinity (by Canva) script. It shares the engine and the date logic; the Week and Day views were reworked to fill the canvas, since on the web you control the sheet rather than a selection.\n\nBundled holidays are national and approximate: always check them against current legislation.\n\n3dvic.com · MIT License`
     }
   }
 };
@@ -1687,8 +1687,8 @@ function buildSVG({ forExport }) {
     ? `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" ` +
       `xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" ` +
       `width="${docW}${unit}" height="${docH}${unit}" viewBox="0 0 ${docW} ${docH}">\n` +
-      `<title>${esc('Swiss Calendar — ' + viewName + ' ' + cfg.year)}</title>\n` +
-      `<desc>${esc('Generated by Swiss Calendar Creator ' + VERSION + ' — 3dvic.com')}</desc>\n`
+      `<title>${esc('Swiss Calendar · ' + viewName + ' ' + cfg.year)}</title>\n` +
+      `<desc>${esc('Generated by Swiss Calendar Creator ' + VERSION + ' · 3dvic.com')}</desc>\n`
     : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${docW} ${docH}" preserveAspectRatio="xMidYMid meet">`;
 
   let svg = head;
